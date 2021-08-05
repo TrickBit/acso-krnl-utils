@@ -30,3 +30,8 @@ I planned this as part of a suite that makes the patches and compiles the kernel
 I started down this path when Max Ehrlich  (https://gitlab.com/Queuecumber)
 announced that he's closed his project and I had a couple of compilation fails
 using your script - it was a config thing - not a script problem
+
+
+I've accidentally pretty much excluded all non debian based building of the kernels
+and spent way to much time with the debian package side of things.
+I plan to modularize the code to handle more case - but thats gonna be a to-do
