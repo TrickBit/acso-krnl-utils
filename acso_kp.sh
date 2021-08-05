@@ -14,6 +14,7 @@
 #
 # The author thanks mdPlsPlus for his excellent contribution and hopes
 # this code is/will be of use to him and looks forward to any contribution
+# comments feedback or general slagging :)
 #
 # personal note to mdPlusPlus: When I started this I had no intention of creating 
 # a new script there were many changes but I had planned to fork and mod. 
