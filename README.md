@@ -13,24 +13,18 @@ This work is heavily modified derivative of mdPlusPlus's work which
 at the time of writing was available here :
 https://gist.github.com/mdPlusPlus/031ec2dac2295c9aaf1fc0b0e808e21a
 
-The author thanks mdPlsPlus for his excellent contribution and hopes
-this code is/will be of use to him and looks forward to any contribution
-
 presonal note to mdPlusPlus:
 When I started this I had no intention of creating a new script
 there were many changes but I had planned to fork and mod.
 it all got out of hand and ended up soo far from the original that
-patching your original codes was no longer viable.
-I used your basic logic and smoothed out some of your code
-added a little more functionality (well sort of)
+patching your original code was no longer viable.
+I used your basic logic and went crazy. I added a some functionality (well sort of)
 This script is more about fast repeated runs trying to NOT always
 re-fetch the latest info and not always recompile or re-extract.
 I messed around with deb package naming as well
 I planned this as part of a suite that makes the patches and compiles the kernels
 I started down this path when Max Ehrlich  (https://gitlab.com/Queuecumber)
 announced that he's closed his project and I had a couple of compilation fails
-using your script - it was a config thing - not a script problem
-
 
 I've accidentally pretty much excluded all non debian based building of the kernels
 and spent way to much time with the debian package side of things.
