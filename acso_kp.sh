@@ -1,15 +1,4 @@
 #!/bin/bash
-#Copyright (c) 2021  Martin J. Wanicki email: (withheld)
-#
-#Permission is hereby granted, free of charge, to any person obtaining a copy
-#of this software and associated documentation files (the "Software"), to deal
-#in the Software without restriction, including without limitation the rights
-#to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-#copies of the Software, and to permit persons to whom the Software is
-#furnished to do so, subject to the following conditions:
-#
-#The above copyright notice and this permission notice shall be included in
-#all copies or substantial portions of the Software.
 #
 #THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 #IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -19,27 +8,24 @@
 #OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #THE SOFTWARE.
 #
-#This work is heavily modified derivative of mdPlusPlus's work which
-#at the time of writing was available here :
+# This work is heavily modified derivative of mdPlusPlus's work which
+# at the time of writing was available here :
 #  https://gist.github.com/mdPlusPlus/031ec2dac2295c9aaf1fc0b0e808e21a
 #
-#The author thanks mdPlsPlus for his excellent contribution and hopes
-#this code is/will be of use to him and looks forward to any contribution
+# The author thanks mdPlsPlus for his excellent contribution and hopes
+# this code is/will be of use to him and looks forward to any contribution
 #
-# presonal note to mdPlusPlus:
-# When I started this I had no intention of creating a new script
-# there were many changes but I had planned to fork and mod.
-# it all got out of hand and ended up soo far from the original that
-# patching your original codes was no longer viable.
-# I used your basic logic and smoothed out some of your code
-# added a little more functionality (well sort of)
-# This script is more about fast repeated runs trying to NOT always
-# re-fetch the latest info and not always recompile or re-extract.
-# I messed around with deb package naming as well
-# I planned this as part of a suite that makes the patches and compiles the kernels
-# I started down this path when Max Ehrlich  (https://gitlab.com/Queuecumber)
-# announced that he's closed his project and I had a couple of compilation fails
-# using your script - it was a config thing - not a script problem
+# personal note to mdPlusPlus: When I started this I had no intention of creating 
+# a new script there were many changes but I had planned to fork and mod. 
+# It all got out of hand and ended up soo far from the original that patching your
+# original code was no longer viable. I used your basic logic and went crazy. 
+# I added a some functionality (well sort of) 
+# This script is more about fast repeated runs trying to NOT always re-fetch the 
+# latest info and not always recompile or re-extract. 
+# I messed around with deb package naming as well. 
+# I planned this as part of a suite that makes the patches and compiles the 
+# kernels I started down this path when Max Ehrlich (https://gitlab.com/Queuecumber) 
+# announced that he's closed his project and I had had a couple of compilation fails
 #
 # Planned things :
 # patch and compile actual UBUNTU kernel source - not too sure but I think
