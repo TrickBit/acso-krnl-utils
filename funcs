@@ -1,0 +1,244 @@
+
+___THIS___=${0}
+___ME___=$(basename -- ${___THIS___})
+lib_dir=$(dirname $(readlink -f ${___THIS___}))
+#---------------------------------------------------------------------------
+# Help Handler
+#---------------------------------------------------------------------------
+Usage(){
+	echo -e ${UsageStr}
+	exit 0
+}
+#---------------------------------------------------------------------------
+# exit Handler
+#---------------------------------------------------------------------------
+quiet_exit(){
+	echo -e "${versionstring} : ${1} ...User quit!"
+	exit 0
+}
+#---------------------------------------------------------------------------
+# exit Handler
+#---------------------------------------------------------------------------
+alldone(){
+	echo -e "${versionstring} : ${1} \n\t...Done!"
+	exit 0
+}
+#---------------------------------------------------------------------------
+# Error Handler
+#---------------------------------------------------------------------------
+die(){
+	echo -e "${versionstring} line $(caller 1)\nError : ${1}" >/dev/stderr
+	exit 1
+}
+#---------------------------------------------------------------------------
+# Error Handler
+#---------------------------------------------------------------------------
+exception(){
+	echo -e "\n****Exception**** \n\n${versionstring} line $(caller 1) \n${1}" >/dev/stderr
+	exit 1
+}
+#---------------------------------------------------------------------------
+# print alias for echo - (cause occasionally I slip into (old) python mode)
+#---------------------------------------------------------------------------
+print(){
+	echo -e "${1}"
+}
+#---------------------------------------------------------------------------
+# dryrun - Really easy to set up a dryrun argument to echo out the actual
+#          calls and show what *would* be done - nice for debugging and
+#          nice for learning the steps involved
+# usage:
+# set up a variable and point it to this function
+# put the variable in front of any call you want "dry runnable"
+# unset the variable to have it do nothing, so the calls are actually made
+# see the code for how I've used it.
+#---------------------------------------------------------------------------
+dryrun(){
+	echo -e "dryrun:  $@"
+}
+#---------------------------------------------------------------------------
+# deletefile -  just a plain rmy but we can enabe/diable, log to the screen
+#          		  or set verbose with just one change
+#---------------------------------------------------------------------------
+deletefile(){
+ 	echo rm -fv $1
+ 	#rm -fv $1
+ }
+#---------------------------------------------------------------------------
+# wfetch - just a plain wget but we can log to the screen or set verbose with
+#          just one changecd_or_die
+#---------------------------------------------------------------------------
+wfetch(){
+ 	echo -e	"wget ${@}"
+	wget  ${@} || wfeched="ERROR"
+ }
+#---------------------------------------------------------------------------
+# cfetch - just a plain copy but we can log to the screen or set verbose with
+#          just one change
+#---------------------------------------------------------------------------
+cfetch(){
+ 	echo -e	"cp ${@}"
+ 	cp ${@}
+ }
+#---------------------------------------------------------------------------
+# untar - tar verbosity is overkill for these purposes
+# makes it simpler to show what is being done
+#---------------------------------------------------------------------------
+ untar(){
+	 echo "Just a moment while we extract ${@}"
+	 tar xf "${@}"
+ }
+ #---------------------------------------------------------------------------
+ # cd_or_die - just a plain cd (change directory)
+ #                 with some checks and info output
+ #---------------------------------------------------------------------------
+ cd_or_die(){
+   cd "${@}" || die "Error: Unable to change into directory - ${@}"
+
+   echo -e "current directory is $(pwd)\n"
+  }
+#---------------------------------------------------------------------------
+# mkdir_or_die - just a plain mkdir
+#                 with some checks and info output
+#---------------------------------------------------------------------------
+mkdir_or_die(){
+  mkdir -p "${@}" || die "Error: Unable to create directory - ${@}"
+  echo "Created directory ${@}"
+ }
+#---------------------------------------------------------------------------
+# fetchfile - crude protocol handler for local files or urls
+#---------------------------------------------------------------------------
+function fetchfile(){
+  uri=$( echo $1 |  grep -Eo '(http|https)://' )
+  if [ "${uri}" == "http://"  -o  "${uri}" == "https://" ] ; then
+    echo "calling wfetch =${f}="
+     wfetch "${f}"
+  else
+     cfetch "${f}" "."
+  fi
+}
+#---------------------------------------------------------------------------
+# load_config - simple function to load a text file and read configuration
+#             from it - safer that 'source filename'
+#---------------------------------------------------------------------------
+function load_config(){
+  [ -f "${@}" ] || die "Open file. ${@} - file not found"
+  cfg_data=$(cat "${@}" | grep "=")
+	config_vars=""
+  for line in $cfg_data; do
+    [[ "${line}" =~ .*"#".* ]] && continue #skip anything that has a comment in it
+		IFS="="
+    read -r __p __v <<< "${line}"
+		unset IFS
+		[[ -z "${__v%%*( )}"  ]] && continue #skip anything that nothing after the delimiter (=)
+    eval ${__p//[[:space:]]}=${__v//[[:space:]]}
+		config_vars+="${__p} "
+		unset cfg_data
+		unset line
+		unset __p
+		unset __v
+  done
+
+
+}
+#---------------------------------------------------------------------------
+# get_yesno - simple function to get user input yes/no in the form of y or n
+#             $response is set to a lowercase ve:rsion of valid input
+#---------------------------------------------------------------------------
+function get_yesno(){
+  errprefix="\n  > function get_yesno()  \n"
+  errmessage=" > This function requires a prompt string containing [Y/n] or [y/N].
+  > Thats a set of square brackets containing EXACTLY 3 characters, Y and / and N
+  > There are NO substitutions for ANY of these characters other that upper/lower case
+  > One character MUST be uppercase and the other MUST be lowercase, which one is up to you.
+  > The uppercase character will be the default if enter is pressed alone
+  > The prompt  was :\n  > \"${@}\"\n"
+  #Clearer than mud??
+	#set -x
+	response=""
+	f=$(echo "${@}" | sed -e 's/.*\[\(.*\)\].*/\1/')
+  [ "${f}" == "" -o ${#f} -ne 3 ] && exception "${errprefix} ${errmessage}"
+
+  if [[ "${f:0:1}" =~ [A-Z] ]] ; then
+    defresponse="${f:0:1}"
+  elif [[ "${f:2:1}" =~ [A-Z] ]] ; then
+    defresponse="${f:2:1}"
+  else
+    ${errmessage}=$"got a prompt string with no default - no uppercase character in [${f}]\n${errmessage}"
+    exception "${errprefix} ${errmessage}"
+  fi
+  defresponse=${defresponse,,}
+	while [ 1 == 1 ] ; do #A very long time ;)
+		echo -n "${@}"
+		read -r response
+		response=${response,,}
+    [ "${response}" == "" ] && response=${defresponse}
+    [[ "${response:0:1}" =~ [y,n] ]] && break
+		echo "Invalid response"
+	done
+}
+
+# 
+# function self_check(){
+#   include_file=${lib_dir}/${___ME___}
+#   shafile=${include_file}.sha
+# 	#echo $shafile
+#
+#   while IFS= read -r line || [ -n "$line" ]; do
+#     OIFS=$IFS
+#   		IFS=" "
+#       read -r hash func <<< "${line}"
+#   		IFS=$OIFS
+#       [ "${func}" == ${___ME___} ] && break
+#   done < $shafile
+#
+#   if [ ! -z "${hash}"  ] ; then
+#     if [[ "$(echo "${hash} ${include_file}"| sha1sum -c - )" != *"OK"* ]] ; then
+# 			die "${___ME___} is corrupt or has been modified - suggest you re-download"
+# 		fi
+#   else
+#     die "No hash to check file : ${include_file}"
+#   fi
+# }
+#
+# self_check
+#
+
+# I've given up on this as a PITA
+# keeping the code here to remember how I did it
+#
+# function libinclude(){
+#   #for now I'll read the hash from a file -
+#   #later change that to retrieve said file from the repo
+#   # its really kinda overkill -
+#   # I have code in the include file to check this file against a hash as well
+#   if [ $# -lt 1 ]; then
+#     errmessage=" > This function accepts one mandtory argument.
+#     > Being the file to be included"
+#     exception "${errmessage}"
+#   fi
+#
+#   include_file=${lib_dir}/${1}
+#   shafile=${include_file}.sha
+#
+#   while IFS= read -r line || [ -n "$line" ]; do
+#     OIFS=$IFS
+#   		IFS=" "
+#       read -r hash func <<< "${line}"
+#   		IFS=$OIFS
+#       [ "${func}" == ${1} ] && break
+#   done < $shafile
+# #  echo "hash=${hash} include=${include_file}"
+#   if [ ! -z "${hash}"  ] ; then
+#     if [[ "$(echo "${hash} ${include_file}"| sha1sum -c - )" == *"OK"* ]] ; then
+#       source "${include_file}"
+#     else
+#       echo "Error - include file : ${include_file} ... missing or corrupt"
+#       echo "${hash} ${include_file}"
+#       exit
+#     fi
+#   else
+#     echo "No hash to check file : ${include_file}"
+#     exit
+#   fi
+# }
