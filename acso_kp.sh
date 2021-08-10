@@ -85,7 +85,9 @@ ACSO_KERNEL_RELEASE_FILE="./include/config/kernel.release"
 ACSO_KERNEL_ARCH_FILE="./debian/arch"
 ACSO_CURRENT_KERNEL=""
 
-ACSO_CURRENT_LOGFILE="$ACSO_STARTUP_DIR/${appname}-${appvers}.log"
+
+
+#ACSO_CURRENT_LOGFILE="$ACSO_STARTUP_DIR/${appname}-${appvers}.log"
 
 
 #---------------------------------------------------------------------------
@@ -101,16 +103,16 @@ UsageStr="${versionstring} ${this}\n\n${tab}
        -f  | --fetchinfo force fetch of latest bleeding edge kernel info from web (see below)\n${tab}
        -c  | --clean     force a 'make clean' before 'make'  - default is not to\n${tab}
        -b  | --buildall  build : (make) extracts all kernel sources and iterates over then compiling each one\n${tab}
-                         ------------------------------------------------------------------------------------------\n${tab}
+                         ===========================================================================---------\n${tab}
 			                   --dryrun    : For some non-destructive sections of the operation cd_or_diedryrun doesnt actually make \n${tab}
 												               any sense. For these sections normal function will take place\n${tab}
-                         ------------------------------------------------------------------------------------------\n${tab}
+                         ===========================================================================---------\n${tab}
                          --extract   : normally archives are only extracted if they have not already been.\n${tab}
                                        essentially no clobber is in force by default - this switch ovverides that\n${tab}
                                        and forces extraction - extraction is destructive - the tree is pruned first!\n${tab}
-                         ------------------------------------------------------------------------------------------\n${tab}
+                         ===========================================================================---------\n${tab}
                          --fetchinfo : normal behavior is to do this only once a day and then use cached information from then on\n${tab}
-                         ------------------------------------------------------------------------------------------\n${tab}
+                         ===========================================================================---------\n${tab}
                          These flags and switches were created in a hurry - more thought could go into these and probably should\n${tab}
                          before anyone gets too familiar with the current ones - I'm open to better - more intuitive suggestions\n${tab}"
                          #---------------------------------------------------------------------------
@@ -218,12 +220,15 @@ function init() {
 	parse_cmdline "$@"
 
 	echo "Initializing..."
-	kernel_config=$(ls /boot/config-* | grep generic | sort -Vr | head -n 1)
+  initlog "$ACSO_STARTUP_DIR/${appname}-${appvers}.log" || die "initlog fail"
+  ACSO_CURRENT_LOGFILE=$(getlog)
+  lecho "Logging $ACSO_CURRENT_LOGFILE"
+  kernel_config=$(ls /boot/config-* | grep generic | sort -Vr | head -n 1)
 
   if [ -z "$(ls -A .)" ] ; then
     echo -e "Good, ${ACSO_STARTUP_DIR} looks empty!"
     get_yesno "Would you like me to set up the build tree here ? [Y/n]"
-    if [ "${ACSO_GET_YES_NO_RESPONSE}" == 'y' ] ; then
+    if [ "${TBLIB_GET_YES_NO_RESPONSE}" == 'y' ] ; then
        echo "${appname}" > "${ACSO_SCRIPT_CONFIG_FILE}"
        echo "# The presence of this file in a directory indicates that it has bee chosen as the source of the build tree" >>"${ACSO_SCRIPT_CONFIG_FILE}"
        echo "# This file mat also be used to store configuation data at some future point" >> "${ACSO_SCRIPT_CONFIG_FILE}"
@@ -257,6 +262,10 @@ function init() {
     die "${_m}\nPlease run this script in the location of its configuration file or an empty directory"
   fi
   cd_or_die "${ACSO_BUILD_DIR}"
+
+  initlog "$ACSO_STARTUP_DIR/${appname}-${appvers}.log" || die "initlog fail"
+  ACSO_CURRENT_LOGFILE=$(getlog)
+  lecho "Logging $ACSO_CURRENT_LOGFILE"
 }
 #---------------------------------------------------------------------------
 # figure out all the bleeding edge versions for stable, mainline and repo
@@ -321,22 +330,22 @@ function get_select_kernel() {
     echo -e "Do you want to get a the newest kernel from your [r]epositories"
     echo -n "Do you want to [q]uit?"
   	echo -ne "\t [s/m/r/Q]" #"?\nOr [b]oth Mainline and Repository [S/m/r/q] "
-		read -r ACSO_GET_YES_NO_RESPONSE
-		ACSO_GET_YES_NO_RESPONSE=${ACSO_GET_YES_NO_RESPONSE,,}
-    [ -z "${ACSO_GET_YES_NO_RESPONSE}" ] && ACSO_GET_YES_NO_RESPONSE='q'
-    [[ "${ACSO_GET_YES_NO_RESPONSE:0:1}" =~ [s,m,r] ]] && break
-	  [[ "${ACSO_GET_YES_NO_RESPONSE}" == "q"  ]] && quiet_exit
+		read -r TBLIB_GET_YES_NO_RESPONSE
+		TBLIB_GET_YES_NO_RESPONSE=${TBLIB_GET_YES_NO_RESPONSE,,}
+    [ -z "${TBLIB_GET_YES_NO_RESPONSE}" ] && TBLIB_GET_YES_NO_RESPONSE='q'
+    [[ "${TBLIB_GET_YES_NO_RESPONSE:0:1}" =~ [s,m,r] ]] && break
+	  [[ "${TBLIB_GET_YES_NO_RESPONSE}" == "q"  ]] && quiet_exit
   	echo "Invalid response"
 	done
 
 
-  ACSO_KERNELL_SELECTION_USER_RESPONSE=$ACSO_GET_YES_NO_RESPONSE
+  ACSO_KERNELL_SELECTION_USER_RESPONSE=$TBLIB_GET_YES_NO_RESPONSE
 
   get_yesno "Do you want to apply the acs override patch? Kernels below 4.10 are not supported. [/n] "
-  ACSO_APPLY_ACSO_PATCH=$ACSO_GET_YES_NO_RESPONSE
+  ACSO_APPLY_ACSO_PATCH=$TBLIB_GET_YES_NO_RESPONSE
 
 	get_yesno "Do you want to apply the experimental AMD AGESA patch to fix VFIO setups on AGESA 0.0.7.2 and newer? [y/N] "
-	agesa=$ACSO_GET_YES_NO_RESPONSE
+	agesa=$TBLIB_GET_YES_NO_RESPONSE
 
 }
 
@@ -429,7 +438,7 @@ function try_acso_patch() {
 		patchvertext=$(echo $patchver | sed -e 's/\./_/g')
 
     patchfile="${ACSO_PATCH_FILES_DIR}/acso_3rdprty_${patchvertext}.patch"
-		lecho -n "Fetching remote patch file for ${patchver}+."
+		lecho "Fetching remote patch file for ${patchver}+."
 		wfetch -O "${patchfile}" "${patchurl}"
 
     apply_acso_patch && break
@@ -571,7 +580,7 @@ function patch(){
 
 #### Quick way to set up loggon of what we retrieve frm the makefile
 function show_kerninfo(){
-  lecho "------------------------------------------------------------------------"
+  lecho "==========================================================================="
   lecho "Current Kernel Info"
   lecho "ACSO_KERNEL_VERSION = "$ACSO_KERNEL_VERSION
   lecho "ACSO_KERNEL_PATCHLEVEL = "$ACSO_KERNEL_PATCHLEVEL
@@ -582,7 +591,7 @@ function show_kerninfo(){
   lecho "ACSO_KERNEL_FULLNAME = "$ACSO_KERNEL_FULLNAME
   lecho "ACSO_KERNEL_LOGFILE = "$ACSO_KERNEL_LOGFILE
   [ "${ACSO_KERNEL_STRING_ERROR}" -eq "${FALSE}" ] && lecho "Good Kernel Info" || lecho "Bad Kernel Info\n ${kernel_infopara}"
-  lecho "------------------------------------------------------------------------"
+  lecho "==========================================================================="
 }
 
 function build_kernel() {
@@ -590,19 +599,19 @@ function build_kernel() {
    show_kerninfo
 
    read -r -d '' BOILERPLATE <<-EOF
----------------------------------------------------------------------------------
+===========================================================================
     function build_kernel thinks that ....
     We are operating in :     ${ACSO_CURRENT_DIR}
     Kernel name is:           ${ACSO_KERNEL_FULLNAME}
     Kernel version is:        ${ACSO_KERNEL_STRING}
     Kernel Localversion is:   ${ACSO_LOCAL_KERNEL_VERSION}
-    ---------------------------------------------------------------------------------
+    ===========================================================================
     Newest stable version is: ${ACSO_STABLE_VERSION}
     Mainline version is:      ${ACSO_MAINLINE_VERSION}
     Mainline URL is:          ${ACSO_MAINLINE_LINK}
     Repository version is:    ${ACSO_REPO_VERSION}
     Repository package is:    ${ACSO_REPO_PACKAGE}
----------------------------------------------------------------------------------
+===========================================================================
 EOF
 lecho "${BOILERPLATE}"
 
@@ -617,20 +626,52 @@ export CC="${gcc}"
 gcc=$(gcc --version | head -n 1)
 lecho "default compiler is ${gcc}"
 
-
 #kernel versions older than 5.3.0 need a gcc before 8
 #I havenet checked anything older than 7 but they may work
-if [ $ACSO_KERNEL_PATCHLEVEL -lt 3 ] ; then
+if [ $ACSO_KERNEL_VERSION -eq 5 -a $ACSO_KERNEL_PATCHLEVEL -lt 3 ] || \
+   [ $ACSO_KERNEL_VERSION -lt 5 ] ; then
+
+  echo -e "This kernel : $ACSO_KERNEL_FULLNAME is older and will likeley require an older compiler"
+  echo -e "kernel versions after 5 but before 5.3.0 need a gcc before 8 (seem to compile ok with 7)"
+  echo -e "kernel versions before 5 have not been fully tested - YMMV"
+  echo -e "kernel 4.11.2 failed with 5, 6, 7, 8, 9"
   gcc=
-  for i in 5 6 7
+  #I cant get 4.11.2 to compile with gcc-5 .. gcc-9
+  gcc_list=""
+  gcc_list2=""
+  low=0
+  high=0
+  for i in 1 2 3 4 5 6 7 8 9 10
   do
+
     #find a gcc compiler
     gcc=$(which gcc-$i)
     if [ ! -z "${gcc}" ] ; then
-      export CC="${gcc}"
-      break
+      gcc_list+="$(basename -- ${gcc}) "
+      gcc_list2+="$i "
+      high=$i
+      [ $low == 0 ] && low=i
     fi
+    # if [ ! -z "${gcc}" ] ; then
+    #   export CC="${gcc}"
+    #   break
+    # fi
   done
+  while [ 1 == 1 ] ; do #A very long time ;)
+    echo -e "You have the following gcc compilers installed:"
+    echo -e "${gcc_list[@]}"
+    echo -ne "Choose one ( $gcc_list2) or Q to quit "
+		read -r TBLIB_GET_YES_NO_RESPONSE
+		TBLIB_GET_YES_NO_RESPONSE=${TBLIB_GET_YES_NO_RESPONSE,,}
+    [ -z "${TBLIB_GET_YES_NO_RESPONSE}" ] && TBLIB_GET_YES_NO_RESPONSE='q'
+    re="[${gcc_list2}]"
+    [[ "${TBLIB_GET_YES_NO_RESPONSE:0:2}" =~ $re ]] && break
+	  [[ "${TBLIB_GET_YES_NO_RESPONSE}" == "q"  ]] && quiet_exit
+  	echo "Invalid response"
+	done
+  gcc=$(which gcc-$TBLIB_GET_YES_NO_RESPONSE)
+  export CC="${gcc}"
+
   if [ -z "${gcc}" ] ; then
     lecho "This kernel probably wont compile with the available gcc compiler"
     lecho "your default gcc is $(gcc --version | head -n 1)"
@@ -639,9 +680,9 @@ if [ $ACSO_KERNEL_PATCHLEVEL -lt 3 ] ; then
     lecho "Perhaps fix this by installing a lower gcc version 5,6 or 7"
     lecho "available to install via apt"
     apt search gcc | grep "^gcc\-[0-9].\-" | cut -d "-" -f 1,2 | uniq
-    echo "answer no and manuallu run sudo apt install <one of these>"
+    echo "answer no and manually run sudo apt install <one of these>"
     get_yesno "Would you like to try to compile anyway? [y/N] "
-    [ "${ACSO_GET_YES_NO_RESPONSE}" == "N"  ] && quiet_exit
+    [ "${TBLIB_GET_YES_NO_RESPONSE}" == "N"  ] && quiet_exit
   fi
 fi
 lecho "using compiler $CC"
@@ -666,13 +707,13 @@ ${dryrun} make CC=${CC} olddefconfig 2>&1 | tee -a $ACSO_KERNEL_LOGFILE
 	##Disable debug builds
 	${dryrun} sed -i -e 's/^CONFIG_DEBUG_INFO=y/CONFIG_DEBUG_INFO=n/g' .config
 	${dryrun} sed -i -e 's/^CONFIG_DEBUG_KERNEL=y/CONFIG_DEBUG_KERNEL=n/g' .config
-  lecho "---------------------------------------------------------------------------------"
+  lecho "==========================================================================="
   [ "${makeclean}" ] && ${dryrun} make clean 2>&1 | tee -a $ACSO_KERNEL_LOGFILE
-  lecho "---------------------------------------------------------------------------------"
-  lecho -"Bulding (make): -j \$(nproc) CC=${CC} bindeb-pkg LOCALVERSION=\"${ACSO_LOCAL_KERNEL_VERSION}\" "
+  lecho "==========================================================================="
+  lecho "Bulding (make): -j \$(nproc) CC=${CC} bindeb-pkg LOCALVERSION=\"${ACSO_LOCAL_KERNEL_VERSION}\" "
   compile_success=$FALSE
-  ${dryrun} make -j "$(nproc)" CC=${CC} bindeb-pkg LOCALVERSION="${ACSO_LOCAL_KERNEL_VERSION}" 2>&1 | tee -a $ACSO_KERNEL_LOGFILE && compile_success=$TRUE
-  echo -e "Returned from \nBuilding (make) -j \$(nproc)  bindeb-pkg LOCALVERSION=\"${ACSO_LOCAL_KERNEL_VERSION}\" "
+  ${dryrun} $(make -j "$(nproc)" CC=${CC} bindeb-pkg LOCALVERSION="${ACSO_LOCAL_KERNEL_VERSION}" 2>&1 | tee -a $ACSO_KERNEL_LOGFILE) && compile_success=$TRUE
+  lecho "Returned from \nBuilding (make) -j \$(nproc)  bindeb-pkg LOCALVERSION=\"${ACSO_LOCAL_KERNEL_VERSION}\" "
   # Append our compilation log file to the current log
   # the rest of out stuff should append after that
   cat $ACSO_KERNEL_LOGFILE >> $ACSO_CURRENT_LOGFILE
@@ -681,16 +722,16 @@ ${dryrun} make CC=${CC} olddefconfig 2>&1 | tee -a $ACSO_KERNEL_LOGFILE
     lecho "Looks like make was succesful..."
     lecho "${BOILERPLATE}"
   else
-    lecho "---------------------------------------------------------------------------------"
+    lecho "==========================================================================="
     lecho "${BOILERPLATE}"
-    lecho "---------------------------------------------------------------------------------"
+    lecho "==========================================================================="
     lecho "Make returned errors so not continuing with packaging"
     lecho "cmdline was"
     lecho "make -j \$(nproc): bindeb-pkg LOCALVERSION=\'${ACSO_LOCAL_KERNEL_VERSION}\'"
     lecho "this has been logged to ${ACSO_CURRENT_LOGFILE}"
     lecho "\n\n\n"
     lecho "               Shhh - Sleeping for 5 sec while you note this screen :)"
-    lecho "---------------------------------------------------------------------------------"
+    lecho "==========================================================================="
     sleep 5s
     failmessg="\n..................Build Failed!!\n"
     [ -z "${buildingdall}" ] && die "${failmessg}" || lecho "${failmessg}" ; return
@@ -737,14 +778,14 @@ ${dryrun} make CC=${CC} olddefconfig 2>&1 | tee -a $ACSO_KERNEL_LOGFILE
     lecho "Cool, we have deb packges - it seems compilation may have been successful"
 
     get_yesno "Would you like to install these now? [y/N] "
-		if [[ "${ACSO_GET_YES_NO_RESPONSE}" == "y"  ]]
+		if [[ "${TBLIB_GET_YES_NO_RESPONSE}" == "y"  ]]
 		then
 			echo "Installation..."
 			echo -e "At this point I would do a "
 			echo "sudo dpkg -i ${kimagefile} ${kheaderfile}"
 
  		  get_yesno "Would you also like to set this kernel the new default? [y/N] "
-			if [[ "${ACSO_GET_YES_NO_RESPONSE}" == "y"  ]]
+			if [[ "${TBLIB_GET_YES_NO_RESPONSE}" == "y"  ]]
 			then
 				if [ "$(lsb_release -s -d | cut -d ' ' -f 1)" == "Ubuntu" ]
 				then
@@ -761,7 +802,7 @@ ${dryrun} make CC=${CC} olddefconfig 2>&1 | tee -a $ACSO_KERNEL_LOGFILE
 					echo "If you're absoluteley sure, and you trust this script and the kernel you just compiled"
 					echo "I can do all this for you."
 					get_yesno "Would you like me to try? [y/N]"
-          if [[ "${ACSO_GET_YES_NO_RESPONSE}" == "y"  ]]
+          if [[ "${TBLIB_GET_YES_NO_RESPONSE}" == "y"  ]]
 					then
 						echo "Making a backup of your current grub configuration"
 						${dryrun} sudo cp  "${ACSO_LOCAL_GRUB_CONFIG}" "${ACSO_LOCAL_GRUB_CONFIG_BACKUP}"
@@ -805,7 +846,7 @@ function main(){
     		 		exit
     				;;
     		esac
-    load_kernel_info
+    load_makefile_info
     patch  #will exit the script it it fails
     build_kernel
     mv $ACSO_CURRENT_LOGFILE $ACSO_KERNEL_LOGFILE
@@ -819,9 +860,9 @@ function buildall(){
   get_bleeding_edge
   #ACSO_FETCH_REMOTE_PATCHES=$TRUE
   buildingdall=$TRUE
-  lecho "=======================================================================----"
+  lecho "==========================================================================="
   lecho "in Buildall"
-  lecho "=======================================================================----"
+  lecho "==========================================================================="
   lecho "Newest stable version is: ${ACSO_STABLE_VERSION}"
   lecho "Mainline version is:      ${ACSO_MAINLINE_VERSION}"
   lecho "Mainline URL is:          ${ACSO_MAINLINE_LINK}"
@@ -841,9 +882,9 @@ function buildall(){
       #setlog "$ACSO_CURRENT_LOGFILE" $OVERWRITE ${working_dir%%.*} will return
       # linux-5
       working_dir=$(echo $working_dir | sed -e 's/\.tar.*//g')
-      lecho "=======================================================================----"
+      lecho "==========================================================================="
       lecho "In Buildall with working dir = ${working_dir}"
-      lecho "=======================================================================----"
+      lecho "==========================================================================="
       if [ -f "${tb}" ] ; then
         [ -d "${working_dir}" -a ! -z "${extract}" ] &&  deletefolder ${working_dir}
         [ ! -d "${working_dir}" ] &&  untar "${tb}"
@@ -856,26 +897,26 @@ function buildall(){
       if [ -d "${working_dir}" ] ; then
         cd $working_dir
         lecho "in $(pwd)"
-        lecho "=======================================================================----"
+        lecho "==========================================================================="
         lecho "In Buildall kernel directory ${working_dir}"
-        lecho "=======================================================================----"
-        load_kernel_info
+        lecho "==========================================================================="
+        load_makefile_info
         lecho "Your log file for this kernel is : $ACSO_KERNEL_LOGFILE "
         lecho "In Buildall - calling patch"
-        lecho "=======================================================================----"
+        lecho "==========================================================================="
         patch
-        lecho "=======================================================================----"
+        lecho "==========================================================================="
         lecho "In Buildall - returned from patch"
         if [ -f ../linux-image-${ACSO_KERNEL_STRING}-acso_amd64.deb ] ; then
           lecho "Looks like this kernel has already been built : ${working_dir}"
-          lecho "=======================================================================----"
+          lecho "==========================================================================="
         else
           lecho "In Buildall - calling build_kernel  ${working_dir}"
-          lecho "=======================================================================----"
+          lecho "==========================================================================="
           build_kernel
-          lecho "=======================================================================----"
+          lecho "==========================================================================="
           lecho "In Buildall - returned from build_kernel : ${working_dir}"
-          lecho "=======================================================================----"
+          lecho "==========================================================================="
         fi
 
         mv $ACSO_CURRENT_LOGFILE $ACSO_KERNEL_LOGFILE
@@ -889,12 +930,12 @@ function buildall(){
 
 
 # still working on these so ignore for now
-test_customarray
-exit
+# test_customarray
+# exit
 
-setlog "$ACSO_CURRENT_LOGFILE" $OVERWRITE
-lecho "=======================================================================----"
+
 init "$@"
+lecho "==========================================================================="
 if [ "${buildall}" == "buildall" ] ; then
 #  dryrun=dryrun
   #extract=extract

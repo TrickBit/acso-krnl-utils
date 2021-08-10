@@ -1,0 +1,317 @@
+#!/bin/bash
+
+lib_dir=$(dirname $(readlink -f ${0}))
+
+
+# Remove some mystery
+TRUE=0
+FALSE=1
+OVERWRITE=1
+APPEND=0
+
+TB_LIB_LOGFILE=""
+
+initlog(){
+	[ $# -ne 1 ] && exception "useage initlog (LOG FILE NAME)"
+	TB_LIB_LOGFILE="${1}"
+	touch "${TB_LIB_LOGFILE}"
+	if [ -w "${TB_LIB_LOGFILE}" ] ; then
+		setlog	${TB_LIB_LOGFILE} ${OVERWRITE}
+		  #echo "${TB_LIB_LOGFILE}"
+		  return $TRUE
+	fi
+	return $FALSE
+}
+
+#---------------------------------------------------------------------------
+# part of the logging setup
+# sets our logfile name and creates an empty file
+# if the file exists it raises an error unless this finction includes an
+# override flag
+# usage:
+# setlog "quoted/file/name" <overwrite>
+# overwrite is an integer
+# 1 (OVERWRITE)-  overwite existing file meaning or create new file if existing file is missing
+# 0 (APPEND)   -  append existing file or create new file if existing file is missing (default)
+#---------------------------------------------------------------------------
+setlog(){
+	local __MSG__
+	local append
+	append=$TRUE #append or create
+	__MSG__="useage : setlog  \"file/to/log/to\" [\"overwrite\"]"
+	[ $# -le 0 ] && exception $__MSG__
+	__MSG__="setlog - refusing to overwrite existing file\nuseage : setlog  \"file/to/log/to\" [\"overwrite\"\]"
+	[ $# -eq 2 -a "${2}" != "0" ] && append=$FALSE #overwrite or create
+	TB_LIB_LOGFILE="${1}"
+	[ ${append} == $TRUE ] && echo >> "${TB_LIB_LOGFILE}" || echo > "${TB_LIB_LOGFILE}"
+	[ -w "${TB_LIB_LOGFILE}" ] || exception 'setlog - log file is not writeble'
+}
+
+getlog(){
+	[ ! -z "${TB_LIB_LOGFILE}" -a -w "${TB_LIB_LOGFILE}" ] && echo "${TB_LIB_LOGFILE}"
+}
+#---------------------------------------------------------------------------
+# echo handler that will optionally log to the file: TB_LIB_LOGFILE
+# if exists and is writeable
+# uses printf to echo to the screen or switches to reading from standard input
+# if there is no command line arguments.
+#---------------------------------------------------------------------------
+lecho(){
+	local logfile
+	#logfile="/dev/null"
+	bail(){
+		echo $@
+		echo "line $(caller 1) "
+		exit
+	}
+	[ -w "${TB_LIB_LOGFILE}" ] && logfile=${TB_LIB_LOGFILE} || bail "Unable to write to log file: $TB_LIB_LOGFILE"
+	 if [ -z "$1" ]; then
+			 cat
+	 else
+			 printf  "${@}\n" || echo "line $(caller 1) "
+			 #echo $@
+	 fi | tee -a "$logfile"
+}
+
+
+#---------------------------------------------------------------------------
+# Help Handler
+#---------------------------------------------------------------------------
+Usage(){
+	echo -e ${UsageStr}
+	exit 0
+}
+#---------------------------------------------------------------------------
+# exit Handler
+#---------------------------------------------------------------------------
+
+quiet_exit(){
+	local __MSG__
+	__MSG__="${versionstring} : ${1} ...User quit!"
+	lecho "${__MSG__}"
+	exit 0
+}
+#---------------------------------------------------------------------------
+# exit Handler
+#---------------------------------------------------------------------------
+alldone(){
+	local __MSG__
+	__MSG__="${versionstring} : ${1} \n\t...Done!"
+	lecho "${__MSG__}"
+	exit 0
+}
+#---------------------------------------------------------------------------
+# Error Handler
+#---------------------------------------------------------------------------
+die(){
+	local __MSG__
+	__MSG__="${versionstring} line $(caller 1)\nError : ${1}"
+	lecho "${__MSG__}"
+	exit 1
+}
+#---------------------------------------------------------------------------
+# Error Handler
+#---------------------------------------------------------------------------
+exception(){
+	local __MSG__
+  __MSG__="\n****Exception**** \n${versionstring} line $(caller 1) \n${1}"
+	lecho "${__MSG__}"
+	exit 1
+}
+
+#---------------------------------------------------------------------------
+# dryrun - Really easy to set up a dryrun argument to echo out the actual
+#          calls and show what *would* be done - nice for debugging and
+#          nice for learning the steps involved
+# usage:
+# set up a variable and point it to this function
+# put the variable in front of any call you want "dry runnable"
+# unset the variable to have it do nothing, so the calls are actually made
+# see the code for how I've used it.
+#---------------------------------------------------------------------------
+dryrun(){
+	lecho "dryrun:  $@"
+}
+#---------------------------------------------------------------------------
+# deletefile -  just a plain rmy but we can enabe/diable, log to the screen
+#          		  or set verbose with just one change
+#---------------------------------------------------------------------------
+deletefile(){
+	lecho  "removing file  ${1}"
+	rm -f ${1}
+ }
+ #---------------------------------------------------------------------------
+ # deletefolder -  just a plain rm -r but we can enabe/diable, log to the screen
+ #          		  or set verbose with just one change
+ #---------------------------------------------------------------------------
+ deletefolder(){
+	if [ -d ${1} ] ; then
+	 	lecho  "removing directory  ${1}"
+	 	rm -rf ${1}
+	else
+		lecho "Not a directory : ${1}"
+	fi
+  }
+
+#---------------------------------------------------------------------------
+# wfetch - just a plain wget but we can log to the screen or set verbose with
+#          just one changecd_or_die
+#---------------------------------------------------------------------------
+wfetch(){
+ 	lecho "wget ${@}"
+	wget  ${@}
+ }
+#---------------------------------------------------------------------------
+# cfetch - just a plain copy but we can log to the screen or set verbose with
+#          just one change
+#---------------------------------------------------------------------------
+cfetch(){
+	lecho "cp ${@}"
+ 	cp ${@}
+ }
+#---------------------------------------------------------------------------
+# untar - tar verbosity is overkill for these purposes
+# makes it simpler to show what is being done
+#---------------------------------------------------------------------------
+ untar(){
+	 lecho "tar xf ${@}"
+	 tar xf ${@}
+
+ }
+ #---------------------------------------------------------------------------
+ # cd_or_die - just a plain cd (change directory)
+ #                 with some checks and info output
+ #---------------------------------------------------------------------------
+ cd_or_die(){
+	 #echo  $(caller )
+	 lecho "Changing directory into ${1}"
+	 cd "${1}" ||  die "Unable to change into directory: ${1}"
+	 lecho "current directory is now ${PWD}"
+  }
+#---------------------------------------------------------------------------
+# mkdir_or_die - just a plain mkdir
+#                 with some checks and info output
+#---------------------------------------------------------------------------
+mkdir_or_die(){
+  lecho "Create directory ${1}"
+  mkdir -p "${1}" || die "Unable to create directory: ${1}"
+  lecho  "created directory ${1}\n"
+ }
+#---------------------------------------------------------------------------
+# fetchfile - crude protocol handler for local files or urls
+#---------------------------------------------------------------------------
+function fetchfile(){
+  uri=$( echo $1 |  grep -Eo '(http|https)://' )
+  if [ "${uri}" == "http://"  -o  "${uri}" == "https://" ] ; then
+    lecho "calling wfetch =${f}="
+     wfetch "${f}"
+  else
+		lecho "calling cfetch =${f}="
+     cfetch "${f}" "."
+  fi
+}
+#---------------------------------------------------------------------------
+# load_config - simple function to load a text file and read configuration
+#             from it - safer that 'source log filename'
+#---------------------------------------------------------------------------
+function load_config(){
+  [ -f "${@}" ] || die "Open file. ${@} - file not found"
+  cfg_data=$(cat "${@}" | grep "=")
+	config_vars=""
+  for line in $cfg_data; do
+    [[ "${line}" =~ .*"#".* ]] && continue #skip anything that has a comment in it
+		IFS="="
+    read -r __p __v <<< "${line}"
+		unset IFS
+		[[ -z "${__v%%*( )}"  ]] && continue #skip anything that nothing after the delimiter (=)
+    eval ${__p//[[:space:]]}=${__v//[[:space:]]}
+		config_vars+="${__p} "
+		unset cfg_data
+		unset line
+		unset __p
+		unset __v
+  done
+
+
+}
+#---------------------------------------------------------------------------
+# get_yesno - simple function to get user input yes/no in the form of y or n
+#             $response is set to a lowercase ve:rsion of valid input
+#---------------------------------------------------------------------------
+function get_yesno(){
+	#lets keep our main script namespace clean
+	local errprefix errmessage
+	errprefix="\n  > function get_yesno()  \n"
+  errmessage=" > This function requires a prompt string containing [Y/n] or [y/N].
+  > Thats a set of square brackets containing EXACTLY 3 characters, Y and / and N
+  > There are NO substitutions for ANY of these characters other that upper/lower case
+  > One character MUST be uppercase and the other MUST be lowercase, which one is up to you.
+  > The uppercase character will be the default if enter is pressed alone
+  > The prompt  was :\n  > \"${@}\"\n"
+  #Clearer than mud??
+	#set -x
+	TBLIB_GET_YES_NO_RESPONSE=""
+	f=$(echo "${@}" | sed -e 's/.*\[\(.*\)\].*/\1/')
+  [ "${f}" == "" -o ${#f} -ne 3 ] && exception "${errprefix} ${errmessage}"
+
+  if [[ "${f:0:1}" =~ [A-Z] ]] ; then
+    defresponse="${f:0:1}"
+  elif [[ "${f:2:1}" =~ [A-Z] ]] ; then
+    defresponse="${f:2:1}"
+  else
+    ${errmessage}=$"got a prompt string with no default - no uppercase character in [${f}]\n${errmessage}"
+    exception "${errprefix} ${errmessage}"
+  fi
+  defresponse=${defresponse,,}
+	while [ 1 == 1 ] ; do #A very long time ;)
+		echo -n "${@}"
+		read -r TBLIB_GET_YES_NO_RESPONSE
+		TBLIB_GET_YES_NO_RESPONSE=${TBLIB_GET_YES_NO_RESPONSE,,}
+    [ "${TBLIB_GET_YES_NO_RESPONSE}" == "" ] && TBLIB_GET_YES_NO_RESPONSE=${defresponse}
+    [[ "${TBLIB_GET_YES_NO_RESPONSE:0:1}" =~ [y,n] ]] && break
+		echo "Invalid response"
+	done
+}
+
+function load_kernel_info(){
+	#lets keep our main script namespace clean
+	local kernel_makefile
+	local kernel_infopara
+	local dots
+	local numdots
+	local __p
+	local __v
+	local OIFS
+	OIFS=IFS
+  [ $# -eq 1 ] && kernel_makefile="${1}" || kernel_makefile="Makefile"
+	[ ! -f "${kernel_makefile}" ] && exception 'useage : load_kernel_info file not found:\"${1}\"'
+	kernel_infopara=$(head -n 6 ${kernel_makefile})
+  IFS=$'\n'
+  for line in ${kernel_infopara}; do
+	  [[ "${line}" =~ .*"#".* ]] && continue #skip anything that has a comment in it
+		IFS="="
+    read -r __p __v <<< "${line}"
+		IFS=$'\n'
+    __v=$(echo "${__v}"  | sed -e 's/^[[:space:]]*//')
+    eval "ACSO_KERNEL_${__p//[[:space:]]}=\"${__v}\""
+  done
+	IFS=$OIFS
+	ACSO_KERNEL_STRING=''
+	ACSO_KERNEL_STRING_ERROR=$TRUE
+  [ ! -z "${ACSO_KERNEL_VERSION}" ] && ACSO_KERNEL_STRING="${ACSO_KERNEL_VERSION}"
+	if [ ! -z "${ACSO_KERNEL_STRING}" ] ; then
+		[ ! -z "${ACSO_KERNEL_PATCHLEVEL}" ] && ACSO_KERNEL_STRING+=".${ACSO_KERNEL_PATCHLEVEL}"
+		[ ! -z "${ACSO_KERNEL_SUBLEVEL}" ] && ACSO_KERNEL_STRING+=".${ACSO_KERNEL_SUBLEVEL}"
+		[ ! -z "${ACSO_KERNEL_EXTRAVERSION}" ] && ACSO_KERNEL_STRING+="${ACSO_KERNEL_EXTRAVERSION}"
+		dots="${ACSO_KERNEL_STRING//[^.]}"
+		if [ "${#dots}" -eq  2 ]; then
+			 ACSO_KERNEL_STRING_ERROR=$FALSE
+			 ACSO_KERNEL_FULLNAME="linux-${ACSO_KERNEL_STRING}"
+			 ACSO_KERNEL_LOGFILE="../${ACSO_KERNEL_FULLNAME}_Build.log"
+		else
+			 ACSO_KERNEL_STRING_ERROR=$TRUE
+			 ACSO_KERNEL_FULLNAME=''
+			 ACSO_KERNEL_LOGFILE="../${appname}_log"
+		fi
+	fi
+}

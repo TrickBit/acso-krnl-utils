@@ -1,0 +1,288 @@
+#!/bin/bash
+
+# Remove some mystery
+TRUE=0
+FALSE=1
+OVERWRITE=1
+APPEND=0
+
+ACSO_KERNEL_INFO_ARRAY_STR="New String"
+
+
+
+xmlgetnext () {
+   local IFS='>'
+   read -d '<' TAG VALUE
+}
+
+function get_item(){
+	local result_field
+  useage="get_item search_string (result_field) optional "
+	[ $# -le 0 ] && exception  "get_item search_string (result_field) optional "
+	[ $# -eq 2 ] && result_field="${2}"
+	local match
+	match=$FALSE
+	local IFS='>'
+	echo "${ACSO_KERNEL_INFO_ARRAY_STR}" | while read -d '<' TAG VALUE ; do
+	#echo -e "${TAG}=${VALUE}\n"
+	 case $TAG in
+      'item')
+			   title=''
+				 version=''
+				 branch=''
+         endoflife=''
+         source=''
+         released=''
+				 url=''
+         ;;
+      'title')
+         title="${VALUE}"
+				 [ "${VALUE}" == "${1}" ] && match=$TRUE
+	       ;;
+      'version')
+         version="${VALUE}"
+				 [ "${VALUE}" == "${1}" ] && match=$TRUE
+         ;;
+      'branch')
+				 branch="${VALUE}"
+				 [ "${VALUE}" == "${1}" ] && match=$TRUE
+         ;;
+      'endoflife')
+				endoflife="${VALUE}"
+				[ "${VALUE}" == "${1}" ] && match=$TRUE
+         ;;
+			'source')
+				source="${VALUE}"
+				[ "${VALUE}" == "${1}" ] && match=$TRUE
+			 	 ;;
+			'released')
+				released="${VALUE}"
+				[ "${VALUE}" == "${1}" ] && match=$TRUE
+				 ;;
+			'url' )
+				url="${VALUE}"
+				[ "${VALUE}" == "${1}" ] && match=$TRUE
+				 ;;
+      '/item')
+				if [ "${match}" == "$TRUE" ] ; then
+					if [ ! -z "${result_field}" ] ; then
+						declare -A rec
+						rec["title"]="${title//[[:space:]]}"
+						rec["version"]="${version//[[:space:]]}"
+						rec["branch"]="${branch//[[:space:]]}"
+						rec["endoflife"]="${endoflife//[[:space:]]}"
+						rec["source"]="${source//[[:space:]]}"
+						rec["released"]="${released//[[:space:]]}"
+						rec["url"]="${url//[[:space:]]}"
+						#for f in 'title version branch endoflife source released url' ;
+						for f in "${!rec[@]}" ;
+						do
+							if [ "${result_field}" == "${f}" ] ; then
+								echo "${rec[$f]}"
+								return 0
+							fi
+						done
+					else
+						record="<title>${title//[[:space:]]}</title>"
+						record+="<version>${version//[[:space:]]}</version>"
+						record+="<branch>${branch//[[:space:]]}</branch>"
+						record+="<endoflife>${endoflife//[[:space:]]}</endoflife>"
+						record+="<source>${source//[[:space:]]}</source>"
+						record+="<released>${released//[[:space:]]}</released>"
+						record+="<url>${url//[[:space:]]}</url>"
+						echo "${record}"
+						return 0
+					fi
+				fi
+				match=$FALSE
+         ;;
+      esac
+done
+return 1
+}
+
+
+xmlgetnext () {
+   local IFS='>'
+   read -d '<' TAG VALUE
+}
+
+function get_linuxinfo(){
+	local tv1
+	local tv2
+	local tv3
+	local EOF
+	local myxml
+	local uri
+	local result
+	local tmpfile
+	record=""
+	result=""
+	EOF=$FALSE
+	uri=https://www.kernel.org/feeds/kdist.xml
+	myxml=/tmp/kerninfo.xml
+	[ ! -d $myxml ] && wget --quiet -O /tmp/kerninfo.xml $uri
+cat $myxml | while xmlgetnext ; do
+   case "${TAG}" in
+      'item')
+				 title=''
+         link=''
+         released=''
+         description=''
+         ;;
+      'title')
+					OIFS=$IFS
+					IFS=":"
+					#echo "title =${VALUE}"
+					read -r tv1 tv2 <<< "${VALUE}"
+		 			IFS=$OIFS
+          title=${tv1//[[:space:]]}
+					branch=${tv2//[[:space:]]}
+					# echo "title =${title}"
+					# echo "branch =${branch}"
+					[ "${title:0:4}" == "next" ] && break
+					#echo "title=$title"
+         ;;
+      'link')
+         link="${VALUE}//[[:space:]]"
+         ;;
+      'pubDate')
+         released=$( date --date "${VALUE}" '+%D %H:%M%P' )
+				 ;;
+			'description')
+    		 url=$( echo "${VALUE}" | grep -E -o 'https.*linux-([0-9]{1,}\.)+[0-9]{1,}' | head -n 1 |cut -d\" -f 1)
+				 # Seems bogus to turn &lt to < and then delete all tags but (I was rally tired at the time)
+				 # I couldnt get the &gt/%lts out - Hmmm
+				 tv1=$( echo "${VALUE}" | sed -e 's/&lt;/</g' -e 's/&gt;/>/g' -e 's/<[^>]*>//g' -e 's/:/=/g' )
+				 description="$tv1"
+				 tv1=$(echo "${description}" | grep -i "\(EOL\)")
+	 			 [ ! -z "${tv1}" ] && endoflife="Yes" || endoflife="No"
+				 OIFS=$IFS${EOF}
+				 IFS=$'\n'
+				 for tv3 in $description ; do
+				 	tv3="${tv3//[[:space:]]}"
+					IFS="="
+					read -r tv1 tv2 <<< "${tv3}"
+					tv2=$( echo "${tv2//[[:space:]]}" |  sed -re 's/[(]/=/g' -re 's/[)]//g' ) #'s/(/_/g' -e 's/a/a/g'  )
+					if [ ! -z "${tv1}" -a ! -z "${tv2}" ] ; then
+						[ "${tv2:0:4}" == "next" ] && break
+						case "${tv1,,}" in
+							'version')
+								read -r tv2 branch <<< ${tv2}
+								#echo "eval ${tv1,,}=${tv2}"
+								version="${tv2}"
+								;;
+							'source')
+							 source=="${tv2}"
+							 ;;
+
+						 esac
+					fi
+					IFS=$'\n'
+				 done
+				 IFS=$OIFS
+         ;;
+      '/item')
+			record="<title>${title//[[:space:]]}</title>"
+			record+="<version>${version//[[:space:]]}</version>"
+			record+="<branch>${branch//[[:space:]]}</branch>"
+			record+="<endoflife>${endoflife//[[:space:]]}</endoflife>"
+			record+="<source>${source//[[:space:]]}</source>"
+			record+="<released>${released//[[:space:]]}</released>"
+			record+="<url>${url//[[:space:]]}</url>"
+			result="<item>${record}</item>"
+			echo "${result}"
+   ;;
+      esac
+done
+
+}
+
+
+function dump_kerninfo(){
+	local IFS='>'
+	echo "${ACSO_KERNEL_INFO_ARRAY_STR}" | while read -d '<' TAG VALUE ; do
+		if [ "${TAG}" = "item" ]  ; then
+			echo "\n${TAG}"
+		else
+			[ "${TAG:0:1}" != "/" ] &&	echo "\n\t${TAG//[[:space:]]}=${VALUE//[[:space:]]}"
+		fi
+	done
+}
+
+
+
+function test_customarray(){
+ACSO_KERNEL_INFO_ARRAY_STR=$(get_linuxinfo)
+echo -e $(dump_kerninfo)
+echo
+echo $(get_item "5.14-rc5" 'url')
+echo
+echo $(get_item "4.19.202")
+}
+
+#
+# function self_check(){
+#   include_file=${lib_dir}/${___ME___}
+#   shafile=${include_file}.sha
+# 	#echo $shafile
+#
+#   while IFS= read -r line || [ -n "$line" ]; do
+#     OIFS=$IFS
+#   		IFS=" "
+#       read -r hash func <<< "${line}"
+#   		IFS=$OIFS
+#       [ "${func}" == ${___ME___} ] && break
+#   done < $shafile
+#
+#   if [ ! -z "${hash}"  ] ; then
+#     if [[ "$(echo "${hash} ${include_file}"| sha1sum -c - )" != *"OK"* ]] ; then
+# 			die "${___ME___} is corrupt or has been modified - suggest you re-download"
+# 		fi
+#   else
+#     die "No hash to check file : ${include_file}"
+#   fi
+# }
+#
+# self_check
+#
+
+# I've given up on this as a PITA
+# keeping the code here to remember how I did it
+#
+
+# function libinclude(){
+#   #for now I'll read the hash from a file -
+#   #later change that to retrieve said file from the repo
+#   # its really kinda overkill -
+#   # I have code in the include file to check this file against a hash as well
+#   if [ $# -lt 1 ]; then
+#     errmessage=" > This function accepts one mandtory argument.
+#     > Being the file to be included"
+#     exception "${errmessage}"
+#   fi
+#
+#   include_file=${lib_dir}/${1}
+#   shafile=${include_file}.sha
+#
+#   while IFS= read -r line || [ -n "$line" ]; do
+#     OIFS=$IFS
+#   		IFS=" "
+#       read -r hash func <<< "${line}"
+#   		IFS=$OIFS
+#       [ "${func}" == ${1} ] && break
+#   done < $shafile
+# #  echo "hash=${hash} include=${include_file}"
+#   if [ ! -z "${hash}"  ] ; then
+#     if [[ "$(echo "${hash} ${include_file}"| sha1sum -c - )" == *"OK"* ]] ; then
+#       source "${include_file}"
+#     else
+#       echo "Error - include file : ${include_file} ... missing or corrupt"
+#       echo "${hash} ${include_file}"
+#       exit
+#     fi
+#   else
+#     echo "No hash to check file : ${include_file}"
+#     exit
+#   fi
+# }
