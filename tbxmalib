@@ -8,8 +8,11 @@ OVERWRITE=1
 APPEND=0
 
 declare -g ACSO_KERNEL_INFO_ARRAY_STR
+declare -ga ACSO_KERNEL_INFO_INDEX
 declare -gA ACSO_KERNEL_INFO_ARRAY
+declare -r  ACSO_KERNEL_KEYS=("version" "branch" "endoflife" "source" "released" "url")
 declare -g TBXML_LIB_FUNC_RESULT
+
 
 function test_customarray(){
   get_linuxinfo_str
@@ -21,8 +24,8 @@ function test_customarray(){
   echo "${TBXML_LIB_FUNC_RESULT}" #quote these - things get magled containinga dot .followed by a 1
   echo "----------------------"
 
-  get_linuxinfo_arr
-  echo "${ACSO_KERNEL_INFO_ARRAY[@]}"
+  build_kerninfo_array "${ACSO_KERNEL_INFO_ARRAY_STR}"
+  dump_kerninfo_arr
 
   # echo $(get_item "4.19.202")
 }
@@ -44,97 +47,87 @@ function dump_kerninfo_str(){
   #echo -e "${TBXML_LIB_FUNC_RESULT}"
 }
 
+function dump_kerninfo_arr(){
 
-function get_linuxinfo_arr(){
-	local tv1 tv2 tv3 EOF uri result IFS
-	record=""
-	result=""TBXML_LIB_FUNC_RESULT
-	EOF=$FALSE
-	uri=https://www.kernel.org/feeds/kdist.xml
-  while IFS='>' read -d '<' TAG VALUE ; do
-   case "${TAG}" in
-      'item')
-				 title=''
-         link=''
-         released=''
-         description=''
-         ;;
-      'title')
-          oifs=$IFS
-          IFS=':'
-					#echo "title =${VALUE}"
-					read -r tv1 tv2 <<< "${VALUE}"
-          IFS=$oifs
-		 			#IFS=$OIFS
-          title=${tv1//[[:space:]]}
-					branch=${tv2//[[:space:]]}
-					# echo "title =${title}"
-					# echo "branch =${branch}"
-					[ "${title:0:4}" == "next" ] && break
-					#echo "title=$title"
-         ;;
-      'link')
-         link="${VALUE}//[[:space:]]"
-         ;;
-      'pubDate')
-         released=$( date --date "${VALUE}" '+%D %H:%M%P' )
-         ;;
-			'description')
-    		 url=$( echo "${VALUE}" | grep -E -o 'https.*linux-([0-9]{1,}\.)+[0-9]{1,}' | head -n 1 |cut -d\" -f 1)
-				 # Seems bogus to turn &lt to < and then delete all tags but (I was rally tired at the time)
-				 # I couldnt get the &gt/%lts out - Hmmm
-				 tv1=$( echo "${VALUE}" | sed -e 's/&lt;/</g' -e 's/&gt;/>/g' -e 's/<[^>]*>//g' -e 's/:/=/g' )
-				 description="$tv1"
-				 tv1=$(echo "${description}" | grep -i "\(EOL\)")
-	 			 [ -n "${tv1}" ] && endoflife="Yes" || endoflife="No"
-				 OIFS=$IFS${EOF}
-				 IFS=$'\n'
-				 for tv3 in $description ; do
-				 	tv3="${tv3//[[:space:]]}"
-					IFS='='
-					read -r tv1 tv2 <<< "${tv3}"
-					tv2=$( echo "${tv2//[[:space:]]}" |  sed -re 's/[(]/=/g' -re 's/[)]//g' ) #'s/(/_/g' -e 's/a/a/g'  )
-					if [ -n "${tv1}" ] && [ -n "${tv2}" ] ; then
-						[ "${tv2:0:4}" == "next" ] && break
-						case "${tv1,,}" in
-							'version')
-								read -r tv2 branch <<< "${tv2}"
-                branch=${branch//[[:space:]]}
-								#echo "eval ${tv1,,}=${tv2}"
-								version="${tv2//[[:space:]]}"
-								;;
-							'source')
-							 source="${tv2//[[:space:]]}"
-							 ;;
+  for i in "${!ACSO_KERNEL_INFO_INDEX[@]}" ; do
+    item="${ACSO_KERNEL_INFO_INDEX[$i]}"
+    echo -e "item=${item}"
+    for item_key in "${ACSO_KERNEL_KEYS[@]}" ; do
+      nk="${item_key},${i}"
+      value=${ACSO_KERNEL_INFO_ARRAY["${nk}"]}
+      echo -e "\t${item_key}=${value}"
 
-						 esac
-					fi
-					IFS=$'\n'
-				 done
-				 #IFS=$OIFS
-         ;;
-      '/item')
-      echo "${title}"
-      IFS=$'\n'
-      # record[title]="${title}"
-			# record[version]="${version}"
-			# record[branch]="${branch}"
-			# record[endoflife]="${endoflife}"
-			# record[source]="${source}"
-			# record[released]="${released}"
-			# record[url]="${url}"
-			# ${ACSO_KERNEL_INFO_ARRAY[item]}=${record}
-			#echo "${result}"
-   ;;
-      esac
-done < <(wget -qO - $uri )
+    done
+    echo "---------------"
+  done
 }
 
 
-xmlgetnext () {
-   local IFS='>'
-   read -d '<' TAG VALUE
+function clear_array(){
+  unset ACSO_KERNEL_INFO_INDEX
+  unset ACSO_KERNEL_INFO_ARRAY
+  declare -ga ACSO_KERNEL_INFO_INDEX
+  declare -gA ACSO_KERNEL_INFO_ARRAY
 }
+
+
+function build_kerninfo_array(){
+  useage="build_kerninfo_array source_xml_string (usually ACSO_KERNEL_INFO_ARRAY_STR) "
+  [ $# -lt 1 ] && exception  "${useage}"
+  local IFS record recordid
+  recordid=""
+  clear_array
+  while IFS=">" read -d '<' TAG VALUE ; do
+    VALUE="${VALUE//[[:space:]]}"
+    case $TAG in
+       'item')
+          title=''
+          version=''
+          branch=''
+          endoflife=''
+          source=''
+          released=''
+          url=''
+          if [ -z "${recordid}" ]; then
+            recordid=0
+          else
+            ((recordid+=1))
+          fi
+          ;;
+       'title')
+          title="${VALUE}"
+          ;;
+       'version')
+          version="${VALUE}"
+          ;;
+       'branch')
+          branch="${VALUE}"
+          ;;
+       'endoflife')
+         endoflife="${VALUE}"
+          ;;
+       'source')
+         source="${VALUE}"
+          ;;
+       'released')
+         released="${VALUE}"
+          ;;
+       'url' )
+         url="${VALUE}"
+          ;;
+       '/item')
+             ACSO_KERNEL_INFO_INDEX[${recordid}]=${version}
+             ACSO_KERNEL_INFO_ARRAY["version,${recordid}"]="${version}"
+             ACSO_KERNEL_INFO_ARRAY["branch,${recordid}"]="${branch}"
+             ACSO_KERNEL_INFO_ARRAY["endoflife,${recordid}"]="${endoflife}"
+             ACSO_KERNEL_INFO_ARRAY["source,${recordid}"]="${source}"
+             ACSO_KERNEL_INFO_ARRAY["released,${recordid}"]="${released}"
+             ACSO_KERNEL_INFO_ARRAY["url,${recordid}"]="${url}"
+          ;;
+        esac
+  done < <(echo "${1}")
+}
+
 
 # check TBXML_LIB_FUNC_RESULT for the result of this or any function in here
 function get_item(){
@@ -191,7 +184,7 @@ function get_item(){
 				if [ "${match}" == "$TRUE" ] ; then
 					if [ -n "${result_field}" ] ; then
 						declare -A rec
-						rec["title"]="${title//[[:space:]]}"
+						#rec["title"]="${title//[[:space:]]}"
 						rec["version"]="${version//[[:space:]]}"
 						rec["branch"]="${branch//[[:space:]]}"
 						rec["endoflife"]="${endoflife//[[:space:]]}"
@@ -207,8 +200,8 @@ function get_item(){
 							fi
 						done
 					else
-						record="<title>${title//[[:space:]]}</title>"
-						record+="<version>${version//[TBXML_LIB_FUNC_RESULT[:space:]]}</version>"
+						#record="<title>${title//[[:space:]]}</title>"
+						record="<version>${version//[TBXML_LIB_FUNC_RESULT[:space:]]}</version>"
 						record+="<branch>${branch//[[:space:]]}</branch>"
 						record+="<endoflife>${endoflife//[[:space:]]}</endoflife>"
 						record+="<source>${source//[[:space:]]}</source>"
@@ -234,18 +227,26 @@ return 1
 # }
 
 function get_linuxinfo_str(){
-	local tv1 tv2 tv3 EOF uri result IFS
+	local tv1 tv2 tv3 EOF uri result IFS dontcare
 	record=""
 	result=""
 	EOF=$FALSE
 	uri=https://www.kernel.org/feeds/kdist.xml
   while IFS='>' read -d '<' TAG VALUE ; do
-   case "${TAG}" in
-      'item')
-				 title=''
-         link=''
+    case "${TAG}" in
+      'item')			#echo "${result}"
+
+        #clear all the variables
+				 #title=''
          released=''
          description=''
+         endoflife="No"
+         version=''
+         branch=''
+   			 source=''
+   			 released=''
+   			 url=''
+         link=''
          ;;
       'title')
 					OIFS=$IFS
@@ -253,42 +254,40 @@ function get_linuxinfo_str(){
 					#echo "title =${VALUE}"
 					read -r tv1 tv2 <<< "${VALUE}"
 		 			IFS=$OIFS
-          title=${tv1//[[:space:]]}
+          version=${tv1//[[:space:]]}
 					branch=${tv2//[[:space:]]}
-					# echo "title =${title}"
-					# echo "branch =${branch}"
-					[ "${title:0:4}" == "next" ] && break
+        	[ "${title:0:4}" == "next" ] && break
 					#echo "title=$title"
-         ;;
-      'link')
-         link="${VALUE}//[[:space:]]"
-         ;;
-      'pubDate')
-         #released=$( date --date "${VALUE}" '+%D %H:%M%P' )
-				 ;;
-			'description')
+         ;;			#echo "${result}"
+
+      'description')
     		 url=$( echo "${VALUE}" | grep -E -o 'https.*linux-([0-9]{1,}\.)+[0-9]{1,}' | head -n 1 |cut -d\" -f 1)
-				 # Seems bogus to turn &lt to < and then delete all tags but (I was rally tired at the time)
+				 # Seems bogus to turn &lt to < and then delete all tags but (I was rally tired atdontcare the time)
 				 # I couldnt get the &gt/%lts out - Hmmm
-				 tv1=$( echo "${VALUE}" | sed -e 's/&lt;/</g' -e 's/&gt;/>/g' -e 's/<[^>]*>//g' -e 's/:/=/g' )
-				 description="$tv1"
-				 tv1=$(echo "${description}" | grep -i "\(EOL\)")
-	 			 [ -n "${tv1}" ] && endoflife="Yes" || endoflife="No"
+				 description=$( echo "${VALUE}" | sed -e 's/&lt;/</g' -e 's/&gt;/>/g' -e 's/<[^>]*>//g' -e 's/:/=/g' )
 				 OIFS=$IFS${EOF}
 				 IFS=$'\n'
 				 for tv3 in $description ; do
 				 	tv3="${tv3//[[:space:]]}"
-					IFS="="
+          [ "${tv3}" == "" ] && continue
+          #echo " line in desc=${tv3}"
+					IFS='='
 					read -r tv1 tv2 <<< "${tv3}"
-					tv2=$( echo "${tv2//[[:space:]]}" |  sed -re 's/[(]/=/g' -re 's/[)]//g' ) #'s/(/_/g' -e 's/a/a/g'  )
-					if [ -n "${tv1}" ] && [ -n "${tv2}" ] ; then
-						[ "${tv2:0:4}" == "next" ] && break
-						case "${tv1,,}" in
+          #get rid of any brackets - left one gets an equals = right one gets stripped
+					tv2=$( echo "${tv2//[[:space:]]}" |  sed -re 's/[(]/=/g' -re 's/[)]//g' )
+					if [ -n "${tv1}" ] && [ -n "${tv2}" ] ; then  #if we have an attribute->value pair
+						[ "${tv2:0:4}" == "next" ] && break #and its not NEXT-blah
+						case "${tv1,,}" in #check the lowercase version of it
 							'version')
-								read -r tv2 branch <<< "${tv2}"
-                branch=${branch//[[:space:]]}
-								#echo "eval ${tv1,,}=${tv2}"
-								version="${tv2//[[:space:]]}"
+                #we actually already have version -
+                # version can occasionally have an extra equals - this will be an eol indicator
+                # the thing before the first equals will be version
+								read -r dontcare eolinfo <<< "${tv2}"
+                if [[ "${eolinfo}" == *"="* ]] ; then #if the thing after the equals has another equals in it - look for eol
+                  read -r endoflife dontcare <<< "${eolinfo}" # the thing after that will be the branch again - we can ignore it
+                  [ "${endoflife,,}" == "eol" ] &&  endoflife="Yes"
+                fi
+
 								;;
 							'source')
 							 source="${tv2//[[:space:]]}"
@@ -296,7 +295,6 @@ function get_linuxinfo_str(){
                'released' )
                released="${tv2//[[:space:]]}"
                ;;
-
 						 esac
 					fi
 					IFS=$'\n'
@@ -305,21 +303,19 @@ function get_linuxinfo_str(){
          ;;
       '/item')
       #echo "$title released: ${released}"
-			record="<title>${title}</title>"
-			record+="<version>${version}</version>"
+			#record="<title>${title}</title>"
+			record="<version>${version}</version>"
 			record+="<branch>${branch}</branch>"
 			record+="<endoflife>${endoflife}</endoflife>"
 			record+="<source>${source}</source>"
 			record+="<released>${released}</released>"
 			record+="<url>${url}</url>"
-      record+="<link>${link}</link>"
-			result+="<item>${record}</item>"
+    	result+="<item>${record}</item>"
       ACSO_KERNEL_INFO_ARRAY_STR="${ACSO_KERNEL_INFO_ARRAY_STR}<item>${record}</item>"
-			#echo "${result}"
       ;;
       esac
 done < <(wget -qO - $uri )
-#good here : echo "${ACSO_KERNEL_INFO_ARRAY_STR}"
+
 }
 
 
@@ -381,7 +377,7 @@ done < <(wget -qO - $uri )
 #   if [ ! -z "${hash}"  ] ; then
 #     if [[ "$(echo "${hash} ${include_file}"| sha1sum -c - )" == *"OK"* ]] ; then
 #       source "${include_file}"
-#     else
+#     else"title"
 #       echo "Error - include file : ${include_file} ... missing or corrupt"
 #       echo "${hash} ${include_file}"
 #       exit

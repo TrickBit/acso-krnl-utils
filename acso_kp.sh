@@ -281,6 +281,8 @@ function get_bleeding_edge() {
 			echo "Using Cached information - updated daily "
 			load_config "${ACSO_CURRENT_TEMP_FILE}"
   else
+
+     # stable & mainline release can be retrieved my way
 			stable_releases_combined_html=""
 			for i in 3 4 5 ; do
 				stable_releases_combined_html+=$(curl -s "${ACSO_KERNEL_ORG_URL}/v${i}.x/")
@@ -293,7 +295,7 @@ function get_bleeding_edge() {
 			else
 				ACSO_MAINLINE_VERSION="unavailable"
 			fi
-
+      #my way for repo is better also
 			#ACSO_REPO_PACKAGE=$(apt search 'linux-source-' | grep 'linux-source' | cut -d '/' -f 1 | awk -F- 'NF<=3' | sort -Vr | head -n 1)
 			#ACSO_REPO_VERSION=$(echo "${ACSO_REPO_PACKAGE}" | cut -d '-' -f 3)
 			#ACSO_REPO_VERSION=$(apt search 'linux-source-' | grep 'linux-source' | sort -Vr | head -n 1 | cut -d ' ' -f 2)
@@ -416,7 +418,7 @@ function apply_acso_patch() {
 #---------------------------------------------------------------------------
 # Try all the available remote patches - be careful if you'e adding/editing
 # here, theres some brittle logic here.
-# I did this in a loop over an array cause I got sick of counting fi's
+# I did this in a loop over an array cause I got sick of counting if - fi's
 #
 #--------------------------------------------------------------------------
 function try_acso_patch() {
@@ -641,7 +643,11 @@ if [ "$ACSO_KERNEL_VERSION" -eq 5 ] && [ "$ACSO_KERNEL_PATCHLEVEL" -lt 3 ] || \
   echo -e "kernel versions before 5 have not been fully tested - YMMV"
   echo -e "kernel 4.11.2 failed with 5, 6, 7, 8, 9"
   gcc=
-  #I cant get 4.11.2 to compile with gcc-5 .. gcc-9
+  # I cant get 4.11.2 to compile with gcc-5 .. gcc-9
+  # 4.20.0 didnt compile with gcc-9 - gcc-6  worked fine - didnt try anything in between
+  # I havent tied anything lower so testing them is up to you
+  # I know they *should* compile with something - but I havent had time to dig deep enough to work it out.
+  # welcome any news on that front
   gcc_list=""
   gcc_list2=""
   low=0

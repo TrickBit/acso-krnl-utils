@@ -17,6 +17,6 @@ trap mytrap SIGINT SIGTERM ERR EXIT
 printf '%s' "$IFS"
 printf '%s' "$IFS" | od -bc
 
-test_customarray >> /dev/null
+test_customarray #>> /dev/null
 printf '%s' "$IFS"
 printf '%s' "$IFS" | od -bc
