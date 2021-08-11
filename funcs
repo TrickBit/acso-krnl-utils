@@ -1,19 +1,19 @@
 #!/bin/bash
 
-lib_dir=$(dirname $(readlink -f ${0}))
+lib_dir=$(dirname "$(readlink -f "${0}")")
 
 CSO_FUNCS_MSG_LOGFILE=''
 
 
 
 _die_(){
-	echo -e "Error: ${@}"
+	echo -e "Error: ${*}"
 	exit 1
 }
 tblib="${lib_dir}/tblib"
-arrsxmllib="${lib_dir}/arrsxmllib"
+arrsxmllib="${lib_dir}/tbxmalib"
 [ -f "${tblib}" ] &&  source "${tblib}" || _die_ "Missing library file : ${tblib}"
-[ -f "${arrsxmllib}" ] &&  source "${arrsxmllib}" || _die_ "Missing library file : "${arrsxmllib}""
+[ -f "${arrsxmllib}" ] &&  source "${arrsxmllib}" || _die_ "Missing library file : \"${arrsxmllib}\""
 unset _die_
 
 
@@ -28,16 +28,9 @@ whoami() { echo "no-one" ; }
 
 function load_makefile_info(){
 	#lets keep our main script namespace clean
-	local kernel_makefile
-	local kernel_infopara
-	local dots
-	local numdots
-	local __p
-	local __v
-	local OIFS
-	OIFS=IFS
-  [ $# -eq 1 ] && kernel_makefile="${1}" || kernel_makefile="Makefile"
-	[ ! -f "${kernel_makefile}" ] && exception 'useage : load_makefile_info file not found:\"${1}\"'
+	local kernel_makefile kernel_infopara dots __p __v IFS
+	[ $# -eq 1 ] && kernel_makefile="${1}" || kernel_makefile="Makefile"
+	[ ! -f "${kernel_makefile}" ] && exception "useage : load_makefile_info file not found:\"${1}\""
 	kernel_infopara=$(head -n 6 ${kernel_makefile})
   IFS=$'\n'
   for line in ${kernel_infopara}; do
@@ -51,11 +44,11 @@ function load_makefile_info(){
 	IFS=$OIFS
 	ACSO_KERNEL_STRING=''
 	ACSO_KERNEL_STRING_ERROR=$TRUE
-  [ ! -z "${ACSO_KERNEL_VERSION}" ] && ACSO_KERNEL_STRING="${ACSO_KERNEL_VERSION}"
-	if [ ! -z "${ACSO_KERNEL_STRING}" ] ; then
-		[ ! -z "${ACSO_KERNEL_PATCHLEVEL}" ] && ACSO_KERNEL_STRING+=".${ACSO_KERNEL_PATCHLEVEL}"
-		[ ! -z "${ACSO_KERNEL_SUBLEVEL}" ] && ACSO_KERNEL_STRING+=".${ACSO_KERNEL_SUBLEVEL}"
-		[ ! -z "${ACSO_KERNEL_EXTRAVERSION}" ] && ACSO_KERNEL_STRING+="${ACSO_KERNEL_EXTRAVERSION}"
+  [ -n "${ACSO_KERNEL_VERSION}" ] && ACSO_KERNEL_STRING="${ACSO_KERNEL_VERSION}"
+	if [ -n "${ACSO_KERNEL_STRING}" ] ; then
+		[ -n "${ACSO_KERNEL_PATCHLEVEL}" ] && ACSO_KERNEL_STRING+=".${ACSO_KERNEL_PATCHLEVEL}"
+		[ -n "${ACSO_KERNEL_SUBLEVEL}" ] && ACSO_KERNEL_STRING+=".${ACSO_KERNEL_SUBLEVEL}"
+		[ -n "${ACSO_KERNEL_EXTRAVERSION}" ] && ACSO_KERNEL_STRING+="${ACSO_KERNEL_EXTRAVERSION}"
 		dots="${ACSO_KERNEL_STRING//[^.]}"
 		if [ "${#dots}" -eq  2 ]; then
 			 ACSO_KERNEL_STRING_ERROR=$FALSE

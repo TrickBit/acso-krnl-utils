@@ -43,7 +43,7 @@ versionstring="${appname} ${appvers}"
 ACSO_STARTUP_DIR=$(pwd)
 #+++++++++++++++++++++++++++++++++++++++++++++++
 ACSO_CURRENT_DIR=$ACSO_STARTUP_DIR
-ACSO_LIB_INCLUDE_DIR=$(dirname $(readlink -f ${0}))
+ACSO_LIB_INCLUDE_DIR=$(dirname "$(readlink -f "${0}")")
 #+++++++++++++++++++++++++++++++++++++++++++++++
 source "${ACSO_LIB_INCLUDE_DIR}/funcs"
 #+++++++++++++++++++++++++++++++++++++++++++++++
@@ -58,7 +58,7 @@ ACSO_SCRIPT_REQUIRED_PACKAGES='curl git wget bison flex rename kernel-package li
 
 
 
-USE_TMP=$FALSE
+#USE_TMP="${FALSE}"
 ACSO_CURRENT_TEMP_FILE="/tmp/${appname}_"$(date '+%w%W')
 
 ACSO_LOCAL_GRUB_CONFIG="/etc/default/grub"
@@ -72,9 +72,9 @@ PATCH_TARGET_QUIRKS_C=drivers/pci/quirks.c
 PATCH_TARGET_KPARAMS_KEY="\[PCIE\].*ACS.*support"
 PATCH_TARGET_QUIRKS_KEY="static.*pcie_acs_override_setup"
 
-PATCH_TARGET_MAKEFILE=Makefile
+#PATCH_TARGET_MAKEFILE=Makefile
 
-ACSO_FETCH_REMOTE_PATCHES=$TRUE
+ACSO_FETCH_REMOTE_PATCHES="${TRUE}"
 
 ACSO_KERNEL_ORG_URL="https://mirrors.edge.kernel.org/pub/linux/kernel"
 
@@ -83,7 +83,7 @@ ACSO_SCRIPT_CONFIG_FILE="${ACSO_STARTUP_DIR}/.${appname}"
 ACSO_KERNEL_RELEASE_FILE="./include/config/kernel.release"
 
 ACSO_KERNEL_ARCH_FILE="./debian/arch"
-ACSO_CURRENT_KERNEL=""
+#ACSO_CURRENT_KERNEL=""
 
 
 
@@ -94,14 +94,14 @@ ACSO_CURRENT_KERNEL=""
 # Usage String
 #---------------------------------------------------------------------------
 tab="\t"
-UsageStr="${versionstring} ${this}\n\n${tab}
+UsageStr="${versionstring} \n\n${tab}
        Usage: ${0} [options]\n${tab} Basic options: \n\n${tab}
        -h  | --help      ${tab}This Message\n${tab}
 			 -r  | --runapt    force apt to install/update any missing packages\n${tab}
 			 -d  | --dryrun    Show what would be done but don't actually do anything (see below)\n${tab}
 			 -e  | --extract   (re) extract existing source trees. (see below)\n${tab}
        -f  | --fetchinfo force fetch of latest bleeding edge kernel info from web (see below)\n${tab}
-       -c  | --clean     force a 'make clean' before 'make'  - default is not to\n${tab}
+       -m  | --makeclean force a 'make clean' before 'make'  - default is not to\n${tab}
        -b  | --buildall  build : (make) extracts all kernel sources and iterates over then compiling each one\n${tab}
                          ===========================================================================---------\n${tab}
 			                   --dryrun    : For some non-destructive sections of the operation cd_or_diedryrun doesnt actually make \n${tab}
@@ -120,9 +120,9 @@ UsageStr="${versionstring} ${this}\n\n${tab}
                          #---------------------------------------------------------------------------
 checkopt(){
    	legalopt=0
-   	for co in  h help d dryrun r runapt e extract f fetchinfo c clean b buildall
+   	for co in  h help d dryrun r runapt e extract f fetchinfo m makeclean b buildall
    	do
-   		if [ ${1} = ${co} ]
+   		if [ "${1}" == "${co}" ]
    		then
         #expand the short-form arguments
         #maybe I should change them to something that shows the reader where they were set
@@ -133,7 +133,7 @@ checkopt(){
    		  [ "${1}" = "r"  ] && parameter=runapt
    		  [ "${1}" = "e"  ] && parameter=extract
         [ "${1}" = "f"  ] && parameter=fetchinfo
-        [ "${1}" = "c"  ] && parameter=makeclean #,---notice this - clean on its own might be a little ambiguous
+        [ "${1}" = "m"  ] && parameter=makeclean #,---notice this - clean on its own might be a little ambiguous
         [ "${1}" = "b"  ] && parameter=buildall
         legalopt=1
    		 break
@@ -148,22 +148,22 @@ checkopt(){
 # NOT perfect but it works for me!
 #--------------------------------------------------------------------------
 parse_cmdline(){
-   	cmdline=$@	  # Make a copy so we still have it to display after its
-                   # been shifted to nothing
-   	#[ -z "$cmdline" ] && Usage  #this line enforces a situation where the MUST BE command line args
+   	#cmdline=${*}	  # Make a copy so we still have it to display after its
+                    # been shifted to nothing - maybe - if we want
+   	#[ -z "$cmdline" ] && Usage  #this line enforces a situation where there MUST BE command line args
      until [ -z "$1" ]; 	do
    		tmp=0
-   		if [ ${1:0:1} = '-' ] ;		then
-   			if [ ${1:0:2} = '--' ] ; then
-   				tmp=${1:2}
+   		if [ "${1:0:1}" = '-' ] ;		then
+   			if [ "${1:0:2}" = '--' ] ; then
+   				tmp="${1:2}"
    			else
-   				tmp=${1:1}
+   				tmp="${1:1}"
    			fi
    		fi
-   		if [ $tmp !=  "0" ] ;	then
-   			parameter=${tmp%%=*}     # Extract name.
-   			checkopt $parameter
-         if [ $legalopt -ne 0 -a "${parameter}" != "help" ] ;	then
+   		if [ "${tmp}" !=  "0" ] ;	then
+   			parameter="${tmp%%=*}"     # Extract name.
+   			checkopt "${parameter}"
+         if [ "${legalopt}" -ne 0 ] && [ "${parameter}" != "help" ] ;	then
    				value=${tmp##*=}
           # prolly fix this with something like [ -z "${value}" ] && value=${parameter}
           # just gotts test it first
@@ -173,7 +173,7 @@ parse_cmdline(){
           [ "${parameter}" == "fetchinfo" ] && value=fetchinfo
           [ "${parameter}" == "makeclean" ] && value=makeclean
           [ "${parameter}" == "buildall" ] && value=buildall
-   				eval ${parameter}=${value}
+   				eval "${parameter}"="${value}"
         else
            Usage
          fi
@@ -191,21 +191,23 @@ parse_cmdline(){
 # or apt sources are broken and this all fails ???
 #--------------------------------------------------------------------------
 function install_dependencies() {
+  local havpkg MissingPackages package
 	MissingPackages=""
 	pkgs=$(dpkg -l | grep "^ii" | sed -e 's/$/\\n/g')
 	for package in $ACSO_SCRIPT_REQUIRED_PACKAGES ; do
-		if [ "$(echo -e $pkgs | grep -i ${package})" == "" ]
+    havpkg=$(echo -e "${pkgs}" | grep -i "${package}")
+		if [ "${havpkg}" == "" ]
 		then
 			[ -e $MissingPackages ] && MissingPackages="${package}" || MissingPackages="$MissingPackages ${package}"
 		fi
 	done
-	if [ "${runapt}" != "" -o "${MissingPackages}" != "" ]; then
+	if [ "${runapt}" != "" ] || [ "${MissingPackages}" != "" ]; then
 		[ "${MissingPackages}" != "" ] && pkgwords="install missing"
 		[ "${runapt}" != "" ] &&  pkgwords="(re) install required"
 		echo "running apt to ${pkgwords} packages"
 		sudo apt -qq update
 		[ "${runapt}" != "" ] && MissingPackages=$ACSO_SCRIPT_REQUIRED_PACKAGES #if its a forced runapt check everything
-		sudo apt -qq install -y ${MissingPackages}                 #otherwise just install missing
+		sudo apt -qq install -y "${MissingPackages}"                 #otherwise just install missing
 	fi
 }
 #---------------------------------------------------------------------------
@@ -275,7 +277,7 @@ function get_bleeding_edge() {
 	echo "Retrieving info about the most current bleeding edge kernel versions..."
 
   ACSO_CURRENT_TEMP_FILE="${ACSO_CURRENT_TEMP_FILE}_versions"
-  if [ -f "${ACSO_CURRENT_TEMP_FILE}" -a "${fetchinfo}" == "" ] ; then
+  if [ -f "${ACSO_CURRENT_TEMP_FILE}" ] && [ "${fetchinfo}" == "" ] ; then
 			echo "Using Cached information - updated daily "
 			load_config "${ACSO_CURRENT_TEMP_FILE}"
   else
@@ -285,7 +287,7 @@ function get_bleeding_edge() {
 			done
 			ACSO_STABLE_VERSION=$(echo "${stable_releases_combined_html}" | grep -E -o 'linux-([0-9]{1,}\.)+[0-9]{1,}' | sort -Vru | head -n 1 | cut -d '-' -f 2)
 			ACSO_MAINLINE_LINK=$(curl -s https://www.kernel.org/ | grep https://git.kernel.org/torvalds/t/linux- | grep -Po '(?<=href=")[^"]*')
-			if ! [ -z "${ACSO_MAINLINE_LINK}" ]
+			if [ -n "${ACSO_MAINLINE_LINK}" ]
 			then
 				ACSO_MAINLINE_VERSION=$(echo "${ACSO_MAINLINE_LINK}" | cut -d '-' -f 2,3 | cut -d '.' -f 1,2)
 			else
@@ -360,7 +362,8 @@ function try_agesa_patch() {
 
   echo "Trying to apply AMD AGESA patch."
 	wfetch -O "${ACSO_PATCH_FILES_DIR}/${agesa_patch_filename}" "${agesa_patch}"
-	if $(git apply --check "${ACSO_PATCH_FILES_DIR}/${agesa_patch_filename}")
+  #if $(git apply --check "${ACSO_PATCH_FILES_DIR}/${agesa_patch_filename}") #does it work without the $()
+	if git apply --check "${ACSO_PATCH_FILES_DIR}/${agesa_patch_filename}"
 	then
 		echo "Applying AMD AGESA patch."
 		git apply "${ACSO_PATCH_FILES_DIR}/${agesa_patch_filename}"
@@ -377,15 +380,15 @@ function check_acso_applied(){
   check_count=""
   txt_patched=$(grep -i "${PATCH_TARGET_KPARAMS_KEY}"  ${PATCH_TARGET_KPARAMS_TXT})
   quirks_patched=$(grep -i "${PATCH_TARGET_QUIRKS_KEY}"  ${PATCH_TARGET_QUIRKS_C})
-  [ ! -z "${txt_patched}" ] && check_count=".${check_count}" || echo "Docs looks clean"
-  [ ! -z "${quirks_patched}" ] && check_count=".${check_count}" || echo "Quirks looks clean"
+  [ -n "${txt_patched}" ] && check_count=".${check_count}" || echo "Docs looks clean"
+  [ -n "${quirks_patched}" ] && check_count=".${check_count}" || echo "Quirks looks clean"
   if [ ${#check_count} -eq 2 ]
   then
     lecho "Acso Patch appears already to have been applied!"
     ACSO_LOCAL_KERNEL_VERSION="-acso"
-    return $TRUE
+    return "${TRUE}"
   else
-    return $FALSE
+    return "${FALSE}"
   fi
 }
 
@@ -394,17 +397,18 @@ function apply_acso_patch() {
   #variables will be set here
   	lecho  "Try to apply acs override patch for ${patchver}+ "
       lecho "Checking patch validity.."
-      if $(git apply --check "${patchfile}"  )
+      # if $(git apply --check "${patchfile}"  )  # does it work without the $()
+      if git apply --check "${patchfile}"
   		then
   			lecho "...Applying "
   			git apply "${patchfile}"
         lecho "...Done - Success!!"
   			cp -v "${patchfile}" .
         ACSO_LOCAL_KERNEL_VERSION="-acso"
-  			return $TRUE
+  			return "${TRUE}"
       else
   			lecho " ..failed"
-        return $FALSE
+        return "${FALSE}"
   		fi
 
 }
@@ -426,7 +430,7 @@ function try_acso_patch() {
   commonurl="https://gitlab.com/Queuecumber/linux-acs-override/-/raw/master/workspaces/%s/acso.patch" #a bit pythony but should work ok
 	patches["5.10.4"]=$commonurl
 	patches["5.6.12"]=$commonurl
-	patches["5.4"]=$commoncheck_acso_appliedurl
+	patches["5.4"]=$commonurl
 	patches["4.18"]=$commonurl
 	patches["4.17"]=$commonurl
 	patches["4.14"]=$commonurl
@@ -434,8 +438,9 @@ function try_acso_patch() {
 	patches["4.18"]="https://gist.github.com/mdPlusPlus/bb3df6248ffc7c6b3772ae0901659966/raw/acso_4_18_ubuntu.patch"
 
 	for patchver in "${!patches[@]}"; do
-		printf -v patchurl ${patches[$patchver]}  ${patchver}
-		patchvertext=$(echo $patchver | sed -e 's/\./_/g')
+		printf -v patchurl "${patches["${patchver}"]}"  ${patchver}
+		#patchvertext=$(echo $patchver | sed -e 's/\./_/g')
+    patchvertext="${patchver//./_}"
 
     patchfile="${ACSO_PATCH_FILES_DIR}/acso_3rdprty_${patchvertext}.patch"
 		lecho "Fetching remote patch file for ${patchver}+."
@@ -464,7 +469,7 @@ function try_local_acso_patch() {
   commonurl="${ACSO_PATCH_FILES_DIR}/acso_%s.patch"
   declare -A patches
   shopt -s nullglob    # In case there aren't any files
-  for filepath in ${ACSO_PATCH_FILES_DIR}/acso_linux-*.patch
+  for filepath in "${ACSO_PATCH_FILES_DIR}"/acso_linux-*.patch
   do
     if [ -f "${filepath}" ] ; then
       label=$(basename -- "${filepath}")
@@ -491,7 +496,7 @@ function stable_preparations() {
 	read -r user_version
   [ -z "${user_version}" ] && user_version=${ACSO_STABLE_VERSION}
   vbranch=$(echo "${user_version}" | cut -d "." -f 1)
-  if [ $vbranch -le 5 -a $vbranch -ge 3 ]
+  if [ "${vbranch}" -le 5 ] && [ "${vbranch}" -ge 3 ]
   then
     archive_name="linux-${user_version}.tar.xz"
     stable_link="${ACSO_KERNEL_ORG_URL}/v${vbranch}.x/${archive_name}"
@@ -518,8 +523,8 @@ function mainline_preparations() {
 	kernel_name="linux-${kernel_version}"
 
 	[ ! -f "${ACSO_KERNEL_ARCHIVE_DIR}/${kernel_archive}" ] && wfetch -O "${ACSO_KERNEL_ARCHIVE_DIR}/${kernel_archive}" "${ACSO_MAINLINE_LINK}"
-  [ -d "${kernel_name}" -a "${extract}" == "extract" ] && rm -rf "${kernel_name}"
-	[ "${extract}" == "" -o ! -d "${kernel_name}" ] &&  untar "${ACSO_KERNEL_ARCHIVE_DIR}/${kernel_archive}"
+  [ -d "${kernel_name}" ] && [ "${extract}" == "extract" ] && rm -rf "${kernel_name}"
+	[ "${extract}" == "" ] || [ ! -d "${kernel_name}" ] &&  untar "${ACSO_KERNEL_ARCHIVE_DIR}/${kernel_archive}"
   [ ! -f "${PATCH_TARGET_KPARAMS_TXT}" ] &&  untar "${ACSO_KERNEL_ARCHIVE_DIR}/${kernel_archive}"
   [ ! -f "${PATCH_TARGET_QUIRKS_C}" ] &&  untar "${ACSO_KERNEL_ARCHIVE_DIR}/${kernel_archive}"
 	cd_or_die "${kernel_name}"
@@ -528,14 +533,14 @@ function mainline_preparations() {
 function repo_preparations() {
 	kernel_name="${ACSO_REPO_PACKAGE}"
   echo " looking for ${kernel_name}"
-	[ -d "${kernel_name}" -a "${extract}" == "extract" ] && rm -rf "${kernel_name}"
+	[ -d "${kernel_name}" ] && [ "${extract}" == "extract" ] && rm -rf "${kernel_name}"
   if [ ! -f "/usr/src/${kernel_name}.tar.bz2" ] ; then
 		echo "Source for repo version (${kernel_name}) not installed"
 		echo "running apt install ${ACSO_REPO_PACKAGE}"
 		sudo apt -qq install "${ACSO_REPO_PACKAGE}"
 		[ ! -f "/usr/src/${kernel_name}.tar.bz2" ] && die "${ACSO_REPO_PACKAGE} was not installed"
 	fi
-	[ "${extract}" == "extract" -o ! -d "${kernel_name}" ] && untar "/usr/src/${kernel_name}.tar.bz2"
+	[ "${extract}" == "extract" ] || [ ! -d "${kernel_name}" ] && untar "/usr/src/${kernel_name}.tar.bz2"
 	cd_or_die "${kernel_name}"
 
 	makefile_version=$(grep "^VERSION" Makefile |  tr -d '[:space:]' | cut -d '=' -f 2)
@@ -543,13 +548,13 @@ function repo_preparations() {
 	makefile_sublevel=$(grep "^SUBLEVEL" Makefile |  tr -d '[:space:]' | cut -d '=' -f 2)
 	#makefile_extraversion=$(grep "^EXTRAVERSION" Makefile|  tr -d '[:space:]' | cut -d '=' -f 2)
 
-	if ! [ -z "${makefile_version}" ]
+	if [ -n "${makefile_version}" ]
 	then
 		kernel_version="${makefile_version}"
-		if ! [ -z "${makefile_patchlevel}" ]
+		if [ -n "${makefile_patchlevel}" ]
 		then
 			kernel_version="${makefile_version}.${makefile_patchlevel}"
-			if ! [ -z "${makefile_sublevel}" ]
+			if [ -n "${makefile_sublevel}" ]
 			then
 				kernel_version="${makefile_version}.${makefile_patchlevel}.${makefile_sublevel}"
 			fi
@@ -563,7 +568,7 @@ function patch(){
   if [[ -z "${ACSO_APPLY_ACSO_PATCH}" || ( "${ACSO_APPLY_ACSO_PATCH}" != "n" && "${ACSO_APPLY_ACSO_PATCH}" != "N" ) ]]
   then
     try_local_acso_patch
-    [ "${ACSO_LOCAL_KERNEL_VERSION}" == "" -a "${ACSO_FETCH_REMOTE_PATCHES}" == "${TRUE}"  ] && try_acso_patch
+    [ "${ACSO_LOCAL_KERNEL_VERSION}" == "" ] && [ "${ACSO_FETCH_REMOTE_PATCHES}" == "${TRUE}"  ] && try_acso_patch
     [ "${ACSO_LOCAL_KERNEL_VERSION}" == "" ] && die " Failed to apply acs override patch. Exiting."
   #	we should end up with ACSO_LOCAL_KERNEL_VERSION="-acso" if everything goes to plan
   fi
@@ -582,15 +587,15 @@ function patch(){
 function show_kerninfo(){
   lecho "==========================================================================="
   lecho "Current Kernel Info"
-  lecho "ACSO_KERNEL_VERSION = "$ACSO_KERNEL_VERSION
-  lecho "ACSO_KERNEL_PATCHLEVEL = "$ACSO_KERNEL_PATCHLEVEL
-  lecho "ACSO_KERNEL_SUBLEVEL = "$ACSO_KERNEL_SUBLEVEL
-  lecho "ACSO_KERNEL_EXTRAVERSION = "$ACSO_KERNEL_EXTRAVERSION
-  lecho "ACSO_KERNEL_NAME = "$ACSO_KERNEL_NAME
-  lecho "ACSO_KERNEL_STRING = "$ACSO_KERNEL_STRING
-  lecho "ACSO_KERNEL_FULLNAME = "$ACSO_KERNEL_FULLNAME
-  lecho "ACSO_KERNEL_LOGFILE = "$ACSO_KERNEL_LOGFILE
-  [ "${ACSO_KERNEL_STRING_ERROR}" -eq "${FALSE}" ] && lecho "Good Kernel Info" || lecho "Bad Kernel Info\n ${kernel_infopara}"
+  lecho "ACSO_KERNEL_VERSION = $ACSO_KERNEL_VERSION"
+  lecho "ACSO_KERNEL_PATCHLEVEL = $ACSO_KERNEL_PATCHLEVEL"
+  lecho "ACSO_KERNEL_SUBLEVEL = $ACSO_KERNEL_SUBLEVEL"
+  lecho "ACSO_KERNEL_EXTRAVERSION = $ACSO_KERNEL_EXTRAVERSION"
+  lecho "ACSO_KERNEL_NAME = $ACSO_KERNEL_NAME"
+  lecho "ACSO_KERNEL_STRING = $ACSO_KERNEL_STRING"
+  lecho "ACSO_KERNEL_FULLNAME = $ACSO_KERNEL_FULLNAME"
+  lecho "ACSO_KERNEL_LOGFILE = $ACSO_KERNEL_LOGFILE"
+  if [ "${ACSO_KERNEL_STRING_ERROR}" -eq "${FALSE}" ] ; then lecho "Good Kernel Info" ; else lecho "Bad Kernel Info\n ${kernel_infopara}" ; fi
   lecho "==========================================================================="
 }
 
@@ -628,8 +633,8 @@ lecho "default compiler is ${gcc}"
 
 #kernel versions older than 5.3.0 need a gcc before 8
 #I havenet checked anything older than 7 but they may work
-if [ $ACSO_KERNEL_VERSION -eq 5 -a $ACSO_KERNEL_PATCHLEVEL -lt 3 ] || \
-   [ $ACSO_KERNEL_VERSION -lt 5 ] ; then
+if [ "$ACSO_KERNEL_VERSION" -eq 5 ] && [ "$ACSO_KERNEL_PATCHLEVEL" -lt 3 ] || \
+   [ "$ACSO_KERNEL_VERSION" -lt 5 ] ; then
 
   echo -e "This kernel : $ACSO_KERNEL_FULLNAME is older and will likeley require an older compiler"
   echo -e "kernel versions after 5 but before 5.3.0 need a gcc before 8 (seem to compile ok with 7)"
@@ -640,35 +645,31 @@ if [ $ACSO_KERNEL_VERSION -eq 5 -a $ACSO_KERNEL_PATCHLEVEL -lt 3 ] || \
   gcc_list=""
   gcc_list2=""
   low=0
-  high=0
   for i in 1 2 3 4 5 6 7 8 9 10
   do
-
     #find a gcc compiler
     gcc=$(which gcc-$i)
-    if [ ! -z "${gcc}" ] ; then
-      gcc_list+="$(basename -- ${gcc}) "
+    if [ -n "${gcc}" ] ; then
+      gcc_list+="$(basename -- "${gcc}") "
       gcc_list2+="$i "
-      high=$i
-      [ $low == 0 ] && low=i
+      [ $low == 0 ] && low="${i}"
     fi
-    # if [ ! -z "${gcc}" ] ; then
-    #   export CC="${gcc}"
-    #   break
-    # fi
   done
   while [ 1 == 1 ] ; do #A very long time ;)
     echo -e "You have the following gcc compilers installed:"
     echo -e "${gcc_list[@]}"
-    echo -ne "Choose one ( $gcc_list2) or Q to quit "
-		read -r TBLIB_GET_YES_NO_RESPONSE
+    echo -e "I have chosen the lowest numbered version as our defaut (gcc-${low})"
+    echo -e "Choose one of ( $gcc_list2) or Q to quit OR"
+    echo -ne "Enter or wait for 20 seconds for (gcc-${low}) : "
+		read -t 20 -r TBLIB_GET_YES_NO_RESPONSE
 		TBLIB_GET_YES_NO_RESPONSE=${TBLIB_GET_YES_NO_RESPONSE,,}
-    [ -z "${TBLIB_GET_YES_NO_RESPONSE}" ] && TBLIB_GET_YES_NO_RESPONSE='q'
+    [ -z "${TBLIB_GET_YES_NO_RESPONSE}" ] && TBLIB_GET_YES_NO_RESPONSE="${low}"
     re="[${gcc_list2}]"
     [[ "${TBLIB_GET_YES_NO_RESPONSE:0:2}" =~ $re ]] && break
 	  [[ "${TBLIB_GET_YES_NO_RESPONSE}" == "q"  ]] && quiet_exit
   	echo "Invalid response"
 	done
+  echo "gcc-$TBLIB_GET_YES_NO_RESPONSE"
   gcc=$(which gcc-$TBLIB_GET_YES_NO_RESPONSE)
   export CC="${gcc}"
 
@@ -688,11 +689,10 @@ fi
 lecho "using compiler $CC"
 sleep 2
 
+
 ${dryrun} cp -v "${kernel_config}" .config
 
-${dryrun} make CC=${CC} olddefconfig
-
-${dryrun} make CC=${CC} olddefconfig 2>&1 | tee -a $ACSO_KERNEL_LOGFILE
+  ${dryrun} make CC="${CC}" olddefconfig 2>&1 | tee -a "$ACSO_KERNEL_LOGFILE"
 
   # ref to https://debian-handbook.info/browse/stable/sect.kernel-compilation.html
 	${dryrun} sed -i -e 's/^CONFIG_SYSTEM_TRUSTED_KEYS=\".*\"/CONFIG_SYSTEM_TRUSTED_KEYS=\"\"/g' .config
@@ -708,20 +708,26 @@ ${dryrun} make CC=${CC} olddefconfig 2>&1 | tee -a $ACSO_KERNEL_LOGFILE
 	${dryrun} sed -i -e 's/^CONFIG_DEBUG_INFO=y/CONFIG_DEBUG_INFO=n/g' .config
 	${dryrun} sed -i -e 's/^CONFIG_DEBUG_KERNEL=y/CONFIG_DEBUG_KERNEL=n/g' .config
   lecho "==========================================================================="
-  [ "${makeclean}" ] && ${dryrun} make clean 2>&1 | tee -a $ACSO_KERNEL_LOGFILE
+  if [ "${makeclean}" ] ; then
+    lecho "make clean ..."
+    ${dryrun} make clean 2>&1 | tee -a "$ACSO_KERNEL_LOGFILE"
+  fi
   lecho "==========================================================================="
   lecho "Bulding (make): -j \$(nproc) CC=${CC} bindeb-pkg LOCALVERSION=\"${ACSO_LOCAL_KERNEL_VERSION}\" "
-  compile_success=$FALSE
-  ${dryrun} $(make -j "$(nproc)" CC=${CC} bindeb-pkg LOCALVERSION="${ACSO_LOCAL_KERNEL_VERSION}" 2>&1 | tee -a $ACSO_KERNEL_LOGFILE) && compile_success=$TRUE
+  compile_success="${FALSE}"
+  ${dryrun} make -j "$(nproc)" CC="${CC}" bindeb-pkg LOCALVERSION="${ACSO_LOCAL_KERNEL_VERSION}" 2>&1 | tee -a "$ACSO_KERNEL_LOGFILE"
+  compile_success="${PIPESTATUS[0]}"
+  # ${dryrun} $(make -j "$(nproc)" CC="${CC}" bindeb-pkg LOCALVERSION="${ACSO_LOCAL_KERNEL_VERSION}" 2>&1 | tee -a "$ACSO_KERNEL_LOGFILE") && compile_success="${TRUE}"
   lecho "Returned from \nBuilding (make) -j \$(nproc)  bindeb-pkg LOCALVERSION=\"${ACSO_LOCAL_KERNEL_VERSION}\" "
   # Append our compilation log file to the current log
   # the rest of out stuff should append after that
-  cat $ACSO_KERNEL_LOGFILE >> $ACSO_CURRENT_LOGFILE
-  if [ "${compile_success}" == "${TRUE}" ]
+  cat "$ACSO_KERNEL_LOGFILE" >> "$ACSO_CURRENT_LOGFILE"
+  if [ "${compile_success}" == "${TRUE}" ] && [ -z "${dryrun}" ]
   then
     lecho "Looks like make was succesful..."
     lecho "${BOILERPLATE}"
-  else
+  elif [ -z "${dryrun}" ]
+  then
     lecho "==========================================================================="
     lecho "${BOILERPLATE}"
     lecho "==========================================================================="
@@ -734,10 +740,12 @@ ${dryrun} make CC=${CC} olddefconfig 2>&1 | tee -a $ACSO_KERNEL_LOGFILE
     lecho "==========================================================================="
     sleep 5s
     failmessg="\n..................Build Failed!!\n"
-    [ -z "${buildingdall}" ] && die "${failmessg}" || lecho "${failmessg}" ; return
+    if [ -z "${buildingdall}" ] ; then die "${failmessg}" ; else lecho "${failmessg}" ; return ; fi
+  else
+    lecho "Dry run, so no real \"make\" report here and nothing further to do wrt building & packaging"
   fi
 
-  [ ! -z "${dryrun}" ] && return
+  [ -n "${dryrun}" ] && return
 
 
   kernel_version=$( cat "${ACSO_KERNEL_RELEASE_FILE}" )
@@ -746,34 +754,40 @@ ${dryrun} make CC=${CC} olddefconfig 2>&1 | tee -a $ACSO_KERNEL_LOGFILE
 
   kimagefile=../linux-image-${kernel_pattern}
   kheaderfile=../linux-headers-${kernel_pattern}
-
   # tidy up lame deb pakage names
-  local fspec nf file
-  fspec="acso_${ACSO_KERNEL_STRING}.*amd64"
-  for file in ../linux-*${ACSO_KERNEL_STRING}-acso_${ACSO_KERNEL_STRING}*
+  local nf file
+  for file in ../linux-*"${ACSO_KERNEL_STRING}"-acso_"${ACSO_KERNEL_STRING}"*
   do
-    nf=$(echo $file | sed "s/acso_${ACSO_KERNEL_STRING}.*amd64/acso_amd64/g")
+    nf="${file//acso_${ACSO_KERNEL_STRING}.*amd64/acso_amd64}"
+    echo "nf using variable expansion = ${nf}"
+    nf=$(echo "$file" | sed "s/acso_${ACSO_KERNEL_STRING}.*amd64/acso_amd64/g")
+    echo "nf using sed expansion = ${nf}"
+    echo "they should both be the same"
     [ -f "${nf}" ] && echo "skipping $nf - already exists" || mv -v $file $nf
   done
-  for file in ../linux-libc*${ACSO_KERNEL_STRING}-acso*
+  for file in ../linux-libc*"${ACSO_KERNEL_STRING}"-acso*
   do
+    nf="${file///acso-._amd64/acso_amd64/acso_amd64}"
+    echo "nf using variable expansion = ${nf}"
     nf=$(echo $file | sed "s/acso-._amd64/acso_amd64/g")
-    [ -f "${nf}" ] && echo "skipping $nf - already exists" || mv -v $file $nf
+    echo "nf using sed expansion = ${nf}"
+    echo "they should both be the same"
+    if [ -f "${nf}" ] ; then echo "skipping $nf - already exists" ; else mv -v "$file" "$nf" ; fi
   done
-  for file in ../linux-upstream*${ACSO_KERNEL_STRING}-acso*
+  for file in ../linux-upstream*"${ACSO_KERNEL_STRING}"-acso*
   do
-    nf=$(echo $file | sed "s/acso-._amd64/acso_amd64/g")
-    [ -f "${nf}" ] && echo "skipping $nf - already exists" || mv -v $file $nf
+    nf=$(echo "$file" | sed "s/acso-._amd64/acso_amd64/g")
+    if [ -f "${nf}" ] ; then echo "skipping $nf - already exists" ; else mv -v "$file" "$nf" ; fi
   done
 
   if [ -z  "${buildingdall}" ] ; then
 
-    if [ -f ${kimagefile} ] ; then
+    if [ -f "${kimagefile}" ] ; then
       lecho "using kernel deb: ${kimagefile}"
     else
       die "missing kernel deb  ${kimagefile}"
     fi
-    [ -f ${kheaderfile} ] && lecho "using header deb ${kheaderfile}" || die "missing header deb ${kheaderfile}"
+    if [ -f "${kheaderfile}" ] ; then lecho "using header deb ${kheaderfile}" ; else die "missing header deb ${kheaderfile}" ; fi
 
     lecho "Cool, we have deb packges - it seems compilation may have been successful"
 
@@ -839,7 +853,7 @@ function main(){
     				;;
     		"r" )
     				repo_preparations
-    				repo_prep=$TRUE
+    				repo_prep="${TRUE}"
     				;;
     		 * )
     		 		echo "Not a valid option. Exiting."
@@ -849,7 +863,7 @@ function main(){
     load_makefile_info
     patch  #will exit the script it it fails
     build_kernel
-    mv $ACSO_CURRENT_LOGFILE $ACSO_KERNEL_LOGFILE
+    mv "$ACSO_CURRENT_LOGFILE" "$ACSO_KERNEL_LOGFILE"
     lecho "Your log file for this kernel is : $ACSO_KERNEL_LOGFILE "
 
 }
@@ -858,8 +872,8 @@ function buildall(){
   local tb
   local working_dir
   get_bleeding_edge
-  #ACSO_FETCH_REMOTE_PATCHES=$TRUE
-  buildingdall=$TRUE
+  #ACSO_FETCH_REMOTE_PATCHES="${TRUE}"
+  buildingdall="${TRUE}"
   lecho "==========================================================================="
   lecho "in Buildall"
   lecho "==========================================================================="
@@ -881,21 +895,21 @@ function buildall(){
       # linux-5.14-rc3.tar
       #setlog "$ACSO_CURRENT_LOGFILE" $OVERWRITE ${working_dir%%.*} will return
       # linux-5
-      working_dir=$(echo $working_dir | sed -e 's/\.tar.*//g')
+      working_dir="${working_dir/.tar.*//}"
       lecho "==========================================================================="
       lecho "In Buildall with working dir = ${working_dir}"
       lecho "==========================================================================="
       if [ -f "${tb}" ] ; then
-        [ -d "${working_dir}" -a ! -z "${extract}" ] &&  deletefolder ${working_dir}
+        [ -d "${working_dir}" ] && [ -n "${extract}" ] &&  deletefolder "${working_dir}"
         [ ! -d "${working_dir}" ] &&  untar "${tb}"
         #Just extract a new version if the two patch files
-        [ ! -f "${working_dir}/${PATCH_TARGET_KPARAMS_TXT}" -o ! -f "${working_dir}/${PATCH_TARGET_QUIRKS_C}" ] && \
+        [ ! -f "${working_dir}/${PATCH_TARGET_KPARAMS_TXT}" ] || [ ! -f "${working_dir}/${PATCH_TARGET_QUIRKS_C}" ] && \
                 untar "${tb}" "${working_dir}/${PATCH_TARGET_KPARAMS_TXT}" "${working_dir}/${PATCH_TARGET_QUIRKS_C}"
 
       fi
 
       if [ -d "${working_dir}" ] ; then
-        cd $working_dir
+        cd_or_die "$working_dir"
         lecho "in $(pwd)"
         lecho "==========================================================================="
         lecho "In Buildall kernel directory ${working_dir}"
@@ -907,7 +921,7 @@ function buildall(){
         patch
         lecho "==========================================================================="
         lecho "In Buildall - returned from patch"
-        if [ -f ../linux-image-${ACSO_KERNEL_STRING}-acso_amd64.deb ] ; then
+        if [ -f ../linux-image-"${ACSO_KERNEL_STRING}"-acso_amd64.deb ] ; then
           lecho "Looks like this kernel has already been built : ${working_dir}"
           lecho "==========================================================================="
         else
@@ -919,8 +933,8 @@ function buildall(){
           lecho "==========================================================================="
         fi
 
-        mv $ACSO_CURRENT_LOGFILE $ACSO_KERNEL_LOGFILE
-        setlog "$ACSO_CURRENT_LOGFILE" $OVERWRITE
+        mv "$ACSO_CURRENT_LOGFILE" "$ACSO_KERNEL_LOGFILE"
+        setlog "$ACSO_CURRENT_LOGFILE" "$OVERWRITE"
         cd -
       fi
   done
@@ -930,11 +944,11 @@ function buildall(){
 
 
 # still working on these so ignore for now
-# test_customarray
-# exit
 
 
 init "$@"
+
+
 lecho "==========================================================================="
 if [ "${buildall}" == "buildall" ] ; then
 #  dryrun=dryrun

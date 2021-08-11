@@ -1,22 +1,31 @@
 #!/bin/bash
 
-lib_dir=$(dirname $(readlink -f ${0}))
+tblib_dir=$(dirname "$(readlink -f "${0}")")
 
-
-# Remove some mystery
+# Remove some mystery - make code easier to read for the next lot
 TRUE=0
 FALSE=1
 OVERWRITE=1
 APPEND=0
-
+TB_LIB_INIT=$TRUE #dont mess with this - other libs that depend on this library us it to check that its loaded
 TB_LIB_LOGFILE=""
+
+
+# function cleanup()
+# {
+#
+#   echo "End"  # ...
+# }
+# trap cleanup EXIT
+
+
 
 initlog(){
 	[ $# -ne 1 ] && exception "useage initlog (LOG FILE NAME)"
 	TB_LIB_LOGFILE="${1}"
 	touch "${TB_LIB_LOGFILE}"
 	if [ -w "${TB_LIB_LOGFILE}" ] ; then
-		setlog	${TB_LIB_LOGFILE} ${OVERWRITE}
+		setlog	"${TB_LIB_LOGFILE}" "${OVERWRITE}"
 		  #echo "${TB_LIB_LOGFILE}"
 		  return $TRUE
 	fi
@@ -39,16 +48,16 @@ setlog(){
 	local append
 	append=$TRUE #append or create
 	__MSG__="useage : setlog  \"file/to/log/to\" [\"overwrite\"]"
-	[ $# -le 0 ] && exception $__MSG__
+	[ $# -le 0 ] && exception "$__MSG__"
 	__MSG__="setlog - refusing to overwrite existing file\nuseage : setlog  \"file/to/log/to\" [\"overwrite\"\]"
-	[ $# -eq 2 -a "${2}" != "0" ] && append=$FALSE #overwrite or create
+	[ $# -eq 2 ] && [ "${2}" != "0" ] && append=$FALSE #overwrite or create
 	TB_LIB_LOGFILE="${1}"
 	[ ${append} == $TRUE ] && echo >> "${TB_LIB_LOGFILE}" || echo > "${TB_LIB_LOGFILE}"
 	[ -w "${TB_LIB_LOGFILE}" ] || exception 'setlog - log file is not writeble'
 }
 
 getlog(){
-	[ ! -z "${TB_LIB_LOGFILE}" -a -w "${TB_LIB_LOGFILE}" ] && echo "${TB_LIB_LOGFILE}"
+	[ -n "${TB_LIB_LOGFILE}" ] && [ -w "${TB_LIB_LOGFILE}" ] && echo "${TB_LIB_LOGFILE}"
 }
 #---------------------------------------------------------------------------
 # echo handler that will optionally log to the file: TB_LIB_LOGFILE
@@ -58,17 +67,18 @@ getlog(){
 #---------------------------------------------------------------------------
 lecho(){
 	local logfile
-	#logfile="/dev/null"
+	logfile="/dev/null"
 	bail(){
-		echo $@
+		echo "$@"
 		echo "line $(caller 1) "
 		exit
 	}
-	[ -w "${TB_LIB_LOGFILE}" ] && logfile=${TB_LIB_LOGFILE} || bail "Unable to write to log file: $TB_LIB_LOGFILE"
+	[ -w "${TB_LIB_LOGFILE}" ] && logfile=${TB_LIB_LOGFILE} #|| bail "Unable to write to log file: $TB_LIB_LOGFILE"
+#echo logging to $logfile
 	 if [ -z "$1" ]; then
 			 cat
 	 else
-			 printf  "${@}\n" || echo "line $(caller 1) "
+			 printf  "%s\n" "${@}" || echo "line $(caller 1) "
 			 #echo $@
 	 fi | tee -a "$logfile"
 }
@@ -78,7 +88,7 @@ lecho(){
 # Help Handler
 #---------------------------------------------------------------------------
 Usage(){
-	echo -e ${UsageStr}
+	echo -e "${UsageStr}"
 	exit 0
 }
 #---------------------------------------------------------------------------
@@ -130,7 +140,7 @@ exception(){
 # see the code for how I've used it.
 #---------------------------------------------------------------------------
 dryrun(){
-	lecho "dryrun:  $@"
+	lecho "dryrun:  ${*}"
 }
 #---------------------------------------------------------------------------
 # deletefile -  just a plain rmy but we can enabe/diable, log to the screen
@@ -138,16 +148,16 @@ dryrun(){
 #---------------------------------------------------------------------------
 deletefile(){
 	lecho  "removing file  ${1}"
-	rm -f ${1}
+	rm -f "${1}"
  }
  #---------------------------------------------------------------------------
  # deletefolder -  just a plain rm -r but we can enabe/diable, log to the screen
  #          		  or set verbose with just one change
  #---------------------------------------------------------------------------
  deletefolder(){
-	if [ -d ${1} ] ; then
+	if [ -d "${1}" ] ; then
 	 	lecho  "removing directory  ${1}"
-	 	rm -rf ${1}
+	 	rm -rf "${1}"
 	else
 		lecho "Not a directory : ${1}"
 	fi
@@ -158,24 +168,24 @@ deletefile(){
 #          just one changecd_or_die
 #---------------------------------------------------------------------------
 wfetch(){
- 	lecho "wget ${@}"
-	wget  ${@}
+ 	lecho "wget ${*}"
+	wget  "${*}"
  }
 #---------------------------------------------------------------------------
-# cfetch - just a plain copy but we can log to the screen or set verbose with
-#          just one change
+# cfetch - just a plain copy to current dir but we can log to the
+#          screen or set verbose with just one change
 #---------------------------------------------------------------------------
 cfetch(){
-	lecho "cp ${@}"
- 	cp ${@}
+	lecho "cp ${*}"
+ 	cp "${*}" .
  }
 #---------------------------------------------------------------------------
 # untar - tar verbosity is overkill for these purposes
 # makes it simpler to show what is being done
 #---------------------------------------------------------------------------
  untar(){
-	 lecho "tar xf ${@}"
-	 tar xf ${@}
+	 lecho "tar xf ${*}"
+	 tar xf "${*}"
 
  }
  #---------------------------------------------------------------------------
@@ -201,8 +211,8 @@ mkdir_or_die(){
 # fetchfile - crude protocol handler for local files or urls
 #---------------------------------------------------------------------------
 function fetchfile(){
-  uri=$( echo $1 |  grep -Eo '(http|https)://' )
-  if [ "${uri}" == "http://"  -o  "${uri}" == "https://" ] ; then
+  uri=$( echo "${1}" |  grep -Eo '(http|https)://' )
+  if [ "${uri}" == "http://" ]  || [ "${uri}" == "https://" ] ; then
     lecho "calling wfetch =${f}="
      wfetch "${f}"
   else
@@ -215,7 +225,7 @@ function fetchfile(){
 #             from it - safer that 'source log filename'
 #---------------------------------------------------------------------------
 function load_config(){
-  [ -f "${@}" ] || die "Open file. ${@} - file not found"
+  [ -f "${*}" ] || die "Open file. ${*} - file not found"
   cfg_data=$(cat "${@}" | grep "=")
 	config_vars=""
   for line in $cfg_data; do
@@ -224,7 +234,7 @@ function load_config(){
     read -r __p __v <<< "${line}"
 		unset IFS
 		[[ -z "${__v%%*( )}"  ]] && continue #skip anything that nothing after the delimiter (=)
-    eval ${__p//[[:space:]]}=${__v//[[:space:]]}
+    eval "${__p//[[:space:]]}"="${__v//[[:space:]]}"
 		config_vars+="${__p} "
 		unset cfg_data
 		unset line
@@ -247,24 +257,24 @@ function get_yesno(){
   > There are NO substitutions for ANY of these characters other that upper/lower case
   > One character MUST be uppercase and the other MUST be lowercase, which one is up to you.
   > The uppercase character will be the default if enter is pressed alone
-  > The prompt  was :\n  > \"${@}\"\n"
+  > The prompt  was :\n  > \"${*}\"\n"
   #Clearer than mud??
 	#set -x
 	TBLIB_GET_YES_NO_RESPONSE=""
-	f=$(echo "${@}" | sed -e 's/.*\[\(.*\)\].*/\1/')
-  [ "${f}" == "" -o ${#f} -ne 3 ] && exception "${errprefix} ${errmessage}"
+	f=$(echo "${*}" | sed -e 's/.*\[\(.*\)\].*/\1/')
+  [ "${f}" == "" ] || [ ${#f} -ne 3 ] && exception "${errprefix} ${errmessage}"
 
   if [[ "${f:0:1}" =~ [A-Z] ]] ; then
     defresponse="${f:0:1}"
   elif [[ "${f:2:1}" =~ [A-Z] ]] ; then
     defresponse="${f:2:1}"
   else
-    ${errmessage}=$"got a prompt string with no default - no uppercase character in [${f}]\n${errmessage}"
+    errmessage=$"got a prompt string with no default - no uppercase character in [${f}]\n${errmessage}"
     exception "${errprefix} ${errmessage}"
   fi
   defresponse=${defresponse,,}
-	while [ 1 == 1 ] ; do #A very long time ;)
-		echo -n "${@}"
+	while [ $TRUE ] ; do #A very long time ;)
+		echo -n "${*}"
 		read -r TBLIB_GET_YES_NO_RESPONSE
 		TBLIB_GET_YES_NO_RESPONSE=${TBLIB_GET_YES_NO_RESPONSE,,}
     [ "${TBLIB_GET_YES_NO_RESPONSE}" == "" ] && TBLIB_GET_YES_NO_RESPONSE=${defresponse}
@@ -275,16 +285,9 @@ function get_yesno(){
 
 function load_kernel_info(){
 	#lets keep our main script namespace clean
-	local kernel_makefile
-	local kernel_infopara
-	local dots
-	local numdots
-	local __p
-	local __v
-	local OIFS
-	OIFS=IFS
+	local kernel_makefile kernel_infopara dots __p __v IFS
   [ $# -eq 1 ] && kernel_makefile="${1}" || kernel_makefile="Makefile"
-	[ ! -f "${kernel_makefile}" ] && exception 'useage : load_kernel_info file not found:\"${1}\"'
+	[ ! -f "${kernel_makefile}" ] && exception "useage : load_kernel_info file not found:\"${1}\""
 	kernel_infopara=$(head -n 6 ${kernel_makefile})
   IFS=$'\n'
   for line in ${kernel_infopara}; do
@@ -298,11 +301,11 @@ function load_kernel_info(){
 	IFS=$OIFS
 	ACSO_KERNEL_STRING=''
 	ACSO_KERNEL_STRING_ERROR=$TRUE
-  [ ! -z "${ACSO_KERNEL_VERSION}" ] && ACSO_KERNEL_STRING="${ACSO_KERNEL_VERSION}"
-	if [ ! -z "${ACSO_KERNEL_STRING}" ] ; then
-		[ ! -z "${ACSO_KERNEL_PATCHLEVEL}" ] && ACSO_KERNEL_STRING+=".${ACSO_KERNEL_PATCHLEVEL}"
-		[ ! -z "${ACSO_KERNEL_SUBLEVEL}" ] && ACSO_KERNEL_STRING+=".${ACSO_KERNEL_SUBLEVEL}"
-		[ ! -z "${ACSO_KERNEL_EXTRAVERSION}" ] && ACSO_KERNEL_STRING+="${ACSO_KERNEL_EXTRAVERSION}"
+  [ -n "${ACSO_KERNEL_VERSION}" ] && ACSO_KERNEL_STRING="${ACSO_KERNEL_VERSION}"
+	if [ -n "${ACSO_KERNEL_STRING}" ] ; then
+		[ -n "${ACSO_KERNEL_PATCHLEVEL}" ] && ACSO_KERNEL_STRING+=".${ACSO_KERNEL_PATCHLEVEL}"
+		[ -n "${ACSO_KERNEL_SUBLEVEL}" ] && ACSO_KERNEL_STRING+=".${ACSO_KERNEL_SUBLEVEL}"
+		[ -n "${ACSO_KERNEL_EXTRAVERSION}" ] && ACSO_KERNEL_STRING+="${ACSO_KERNEL_EXTRAVERSION}"
 		dots="${ACSO_KERNEL_STRING//[^.]}"
 		if [ "${#dots}" -eq  2 ]; then
 			 ACSO_KERNEL_STRING_ERROR=$FALSE
